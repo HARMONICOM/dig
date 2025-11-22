@@ -1,0 +1,167 @@
+name: Create Release with Build
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.15.2
+
+      - name: Install database libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpq-dev default-libmysqlclient-dev
+
+      - name: Build project
+        run: |
+          zig build
+
+      - name: Run tests
+        run: |
+          zig build test
+
+  release:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from build.zig.zon
+        id: get_version
+        run: |
+          VERSION=$(grep -oP '\.version = "\K[^"]+' build.zig.zon)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "Detected version: $VERSION"
+
+      - name: Check if tag exists
+        id: check_tag
+        run: |
+          if git rev-parse "${{ steps.get_version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Tag ${{ steps.get_version.outputs.tag }} already exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Tag ${{ steps.get_version.outputs.tag }} does not exist"
+          fi
+
+      - name: Create Git tag
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.get_version.outputs.tag }}" -m "Release ${{ steps.get_version.outputs.tag }}"
+          git push origin "${{ steps.get_version.outputs.tag }}"
+
+      - name: Generate release notes
+        if: steps.check_tag.outputs.exists == 'false'
+        id: release_notes
+        env:
+          VERSION: ${{ steps.get_version.outputs.version }}
+          TAG: ${{ steps.get_version.outputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          {
+            echo "notes<<NOTES_EOF"
+            if [ -z "$PREV_TAG" ]; then
+              echo "## What's New"
+              echo ""
+              echo "This is the first release of Dig ORM v${VERSION}."
+              echo ""
+              echo "Dig ORM is a type-safe SQL query builder library for Zig that provides:"
+              echo "- Type-safe query building with compile-time type checking"
+              echo "- Fluent API for building queries intuitively"
+              echo "- Multi-database support (PostgreSQL and MySQL)"
+              echo "- Schema definition with a simple API"
+              echo "- Transaction support with built-in transaction management"
+              echo "- Zero dependencies (pure Zig implementation)"
+              echo ""
+              echo "## Installation"
+              echo ""
+              echo "Add Dig to your \`build.zig.zon\`:"
+              echo ""
+              echo '```zig'
+              echo ".dependencies = .{"
+              echo "    .dig = .{"
+              echo "        .url = \"https://github.com/${REPO}/archive/refs/tags/${TAG}.tar.gz\","
+              echo "        // Add hash after first fetch"
+              echo "    },"
+              echo "}"
+              echo '```'
+              echo ""
+              echo "## Requirements"
+              echo ""
+              echo "- Zig 0.15.2 or later"
+              echo "- PostgreSQL: libpq development libraries (libpq-dev)"
+              echo "- MySQL: libmysqlclient development libraries (libmysqlclient-dev)"
+              echo ""
+              echo "## Documentation"
+              echo ""
+              echo "- [API Reference](https://github.com/${REPO}/blob/main/documents/api_reference.md)"
+              echo "- [Architecture](https://github.com/${REPO}/blob/main/documents/architecture.md)"
+              echo "- [Specification](https://github.com/${REPO}/blob/main/documents/specification.md)"
+              echo "- [Full Documentation](https://github.com/${REPO}/tree/main/documents)"
+            else
+              echo "## What's Changed"
+              echo ""
+              echo "### Commits since $PREV_TAG"
+              echo ""
+              echo '```'
+              git log $PREV_TAG..HEAD --pretty=format:"- %s (%an)" --no-merges
+              echo ""
+              echo '```'
+              echo ""
+              echo "## Installation"
+              echo ""
+              echo "Add Dig to your \`build.zig.zon\`:"
+              echo ""
+              echo '```zig'
+              echo ".dependencies = .{"
+              echo "    .dig = .{"
+              echo "        .url = \"https://github.com/${REPO}/archive/refs/tags/${TAG}.tar.gz\","
+              echo "        // Add hash after first fetch"
+              echo "    },"
+              echo "}"
+              echo '```'
+              echo ""
+              echo "**Full Changelog**: https://github.com/${REPO}/compare/$PREV_TAG...${TAG}"
+            fi
+            echo "NOTES_EOF"
+          } >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.tag }}
+          name: Dig ORM v${{ steps.get_version.outputs.version }}
+          body: ${{ steps.release_notes.outputs.notes }}
+          draft: false
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Skip release creation
+        if: steps.check_tag.outputs.exists == 'true'
+        run: |
+          echo "Release ${{ steps.get_version.outputs.tag }} already exists. Skipping release creation."
+

@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dig ORM – A Type-safe SQL Query Builder for Zig</title>
+  <meta name="description" content="Dig ORM is a lightweight, type-safe SQL query builder library for Zig. Build SQL queries with compile-time type checking for PostgreSQL and MySQL." />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div class="page">
+    <header class="site-header">
+      <a href="#overview" class="logo">
+        <img src="dig_logo.png" alt="Dig ORM logo" class="logo-img" />
+      </a>
+      <nav class="top-nav">
+        <a href="#overview">Overview</a>
+        <a href="#getting-started">Getting Started</a>
+        <a href="#queries">Queries</a>
+        <a href="#schema">Schema</a>
+        <a href="#migrations">Migrations</a>
+        <a href="#database-support">Database Support</a>
+      </nav>
+      <a class="top-cta" href="https://github.com/HARMONICOM/dig" target="_blank" rel="noreferrer">GitHub</a>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="sidebar-section">
+          <div class="sidebar-title">Introduction</div>
+          <a href="#overview">What is Dig ORM?</a>
+          <a href="#features">Key Features</a>
+          <a href="#requirements">Requirements</a>
+        </div>
+        <div class="sidebar-section">
+          <div class="sidebar-title">Guides</div>
+          <a href="#getting-started">Getting Started</a>
+          <a href="#queries">Query Builders</a>
+          <a href="#schema">Schema Definition</a>
+          <a href="#migrations">Migrations</a>
+          <a href="#transactions">Transactions</a>
+        </div>
+        <div class="sidebar-section">
+          <div class="sidebar-title">Reference</div>
+          <a href="#database-support">Database Support</a>
+          <a href="#api-reference">API Reference</a>
+          <a href="#project-structure">Project Structure</a>
+        </div>
+        <div class="sidebar-section">
+          <div class="sidebar-title">Resources</div>
+          <a href="https://github.com/HARMONICOM/dig" target="_blank">GitHub Repository</a>
+        </div>
+      </aside>
+
+      <main class="content">
+        <section class="hero">
+          <p class="hero-eyebrow">ORM for Zig</p>
+          <h1>Build type-safe SQL queries with Dig ORM.</h1>
+          <p class="hero-subtitle">
+            Dig ORM is a lightweight, type-safe SQL query builder library for Zig. It provides an intuitive API
+            for building SQL queries with compile-time type checking. Supports PostgreSQL and MySQL with full
+            driver implementations.
+          </p>
+          <div class="hero-actions">
+            <a class="btn primary" href="#getting-started">Get Started</a>
+            <a class="btn ghost" href="#minimal-example">View Minimal Example</a>
+          </div>
+          <div class="hero-meta">
+            <span>Requires Zig 0.15.2+</span>
+            <span>PostgreSQL &amp; MySQL</span>
+            <span>SQL-based Migrations</span>
+          </div>
+        </section>
+
+        <section id="overview" class="doc-section">
+          <h2>Overview</h2>
+          <p>
+            Dig ORM is a type-safe SQL query builder library for Zig programming language. It provides an
+            intuitive API for building SQL queries similar to Drizzle ORM, with support for PostgreSQL and MySQL.
+          </p>
+
+          <h3 id="features">Key Features</h3>
+          <ul>
+            <li><strong>Type-safe query building</strong>: Build SQL queries with compile-time type checking.</li>
+            <li><strong>Fluent API</strong>: Chain methods to build queries intuitively.</li>
+            <li><strong>Multi-database support</strong>: PostgreSQL and MySQL with full driver implementations.</li>
+            <li><strong>Schema definition</strong>: Define tables and columns with a simple API.</li>
+            <li><strong>Migration system</strong>: SQL-based database schema versioning with up/down migrations.</li>
+            <li><strong>Transaction support</strong>: Built-in transaction management (BEGIN/COMMIT/ROLLBACK).</li>
+            <li><strong>Result parsing</strong>: Automatic type conversion from database results.</li>
+            <li><strong>C library bindings</strong>: Complete bindings for libpq and libmysqlclient.</li>
+          </ul>
+
+          <h3 id="requirements">Requirements</h3>
+          <ul>
+            <li><strong>Zig</strong>: 0.15.2 or later.</li>
+            <li><strong>PostgreSQL</strong>: libpq development libraries (if using PostgreSQL).</li>
+            <li><strong>MySQL</strong>: libmysqlclient development libraries (if using MySQL).</li>
+            <li><strong>Docker &amp; Docker Compose</strong> (optional): For development environment.</li>
+          </ul>
+        </section>
+
+        <section id="getting-started" class="doc-section">
+          <h2>Getting Started</h2>
+          <p>
+            This quickstart shows how to set up Dig ORM as a dependency and execute SQL queries.
+          </p>
+
+          <h3>1. Add Dig ORM as a dependency</h3>
+          <p>Fetch Horizon using Zig's package manager:</p>
+          <pre><code class="code-block">zig fetch --save-exact=dig https://github.com/HARMONICOM/dig/archive/refs/tags/0.0.4.tar.gz</code></pre>
+
+          <h3>2. Configure <code>build.zig</code></h3>
+          <p>Import the Dig module and enable the database drivers you need:</p>
+          <pre><code class="code-block">const dig = b.dependency("dig", .{
+    .target = target,
+    .optimize = optimize,
+    // Enable the database drivers you need (both disabled by default)
+    .postgresql = true,  // Enable if using PostgreSQL
+    .mysql = true,       // Enable if using MySQL
+});
+
+exe.root_module.addImport("dig", dig.module("dig"));
+b.installArtifact(exe);
+
+// Install migration tool (automatically built by Dig)
+const migrate_artifact = dig.artifact("migrate");
+b.installArtifact(migrate_artifact);</code></pre>
+
+          <h3>3. Install database libraries</h3>
+          <p>Install the required libraries for your database:</p>
+          <pre><code class="code-block"># PostgreSQL (Debian/Ubuntu)
+sudo apt-get install libpq-dev
+
+# MySQL (Debian/Ubuntu)
+sudo apt-get install default-libmysqlclient-dev
+
+# macOS (Homebrew)
+brew install postgresql
+brew install mysql-client</code></pre>
+
+          <h3 id="minimal-example">4. Connect and query</h3>
+          <p>Here is a minimal example using Dig ORM:</p>
+          <pre><code class="code-block">const std = @import("std");
+const dig = @import("dig");
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // Connect to database
+    const config = dig.types.ConnectionConfig{
+        .database_type = .postgresql,
+        .host = "localhost",
+        .port = 5432,
+        .database = "mydb",
+        .username = "user",
+        .password = "pass",
+    };
+
+    var db = try dig.db.connect(allocator, config);
+    defer db.disconnect();
+
+    // Build and execute query
+    var query = try dig.query.SelectQuery.init(allocator, "users");
+    defer query.deinit();
+
+    const sql = try (try query
+        .select(&[_][]const u8{ "id", "name", "email" })
+        .where("age", "&gt;", .{ .integer = 18 }))
+        .toSql(.postgresql);
+    defer allocator.free(sql);
+
+    var result = try db.query(sql);
+    defer result.deinit();
+
+    for (result.rows) |row| {
+        const id = row.get("id").?.integer;
+        const name = row.get("name").?.text;
+        std.debug.print("User: {d}, {s}\n", .{ id, name });
+    }
+}</code></pre>
+        </section>
+
+        <section id="queries" class="doc-section">
+          <h2>Query Builders</h2>
+          <p>
+            Dig ORM provides type-safe query builders for SELECT, INSERT, UPDATE, and DELETE operations.
+            All query builders use a fluent API for method chaining.
+          </p>
+
+          <h3>SELECT Queries</h3>
+          <pre><code class="code-block">var query = try dig.query.SelectQuery.init(allocator, "users");
+defer query.deinit();
+
+const sql = try (try query
+    .select(&[_][]const u8{ "id", "name", "email" })
+    .where("age", "&gt;", .{ .integer = 18 }))
+    .orderBy("name", .asc)
+    .limit(10)
+    .toSql(.postgresql);
+defer allocator.free(sql);</code></pre>
+
+          <h3>INSERT Queries</h3>
+          <p>Method chaining style:</p>
+          <pre><code class="code-block">var query = try dig.query.InsertQuery.init(allocator, "users");
+defer query.deinit();
+
+const sql = try (try (try query
+    .addValue("name", .{ .text = "John Doe" }))
+    .addValue("email", .{ .text = "john@example.com" }))
+    .addValue("age", .{ .integer = 30 }))
+    .toSql(.postgresql);
+defer allocator.free(sql);</code></pre>
+
+          <p>Hash map style:</p>
+          <pre><code class="code-block">var query = try dig.query.InsertQuery.init(allocator, "users");
+defer query.deinit();
+
+var values = std.StringHashMap(dig.types.SqlValue).init(allocator);
+defer values.deinit();
+
+try values.put("name", .{ .text = "John Doe" });
+try values.put("email", .{ .text = "john@example.com" });
+try values.put("age", .{ .integer = 30 });
+
+const sql = try (try query.setValues(values)).toSql(.postgresql);
+defer allocator.free(sql);</code></pre>
+
+          <h3>UPDATE Queries</h3>
+          <pre><code class="code-block">var query = try dig.query.UpdateQuery.init(allocator, "users");
+defer query.deinit();
+
+const sql = try (try (try query
+    .set("age", .{ .integer = 31 }))
+    .where("id", "=", .{ .integer = 1 }))
+    .toSql(.postgresql);
+defer allocator.free(sql);</code></pre>
+
+          <h3>DELETE Queries</h3>
+          <pre><code class="code-block">var query = try dig.query.DeleteQuery.init(allocator, "users");
+defer query.deinit();
+
+const sql = try (try query
+    .where("id", "=", .{ .integer = 1 }))
+    .toSql(.postgresql);
+defer allocator.free(sql);</code></pre>
+        </section>
+
+        <section id="schema" class="doc-section">
+          <h2>Schema Definition</h2>
+          <p>
+            Define database schemas with tables and columns using Dig's schema API. The schema can be
+            compiled to CREATE TABLE SQL statements for PostgreSQL and MySQL.
+          </p>
+
+          <h3>Defining Tables</h3>
+          <pre><code class="code-block">var table = dig.schema.Table.init(allocator, "users");
+defer table.deinit();
+
+try table.addColumn(.{
+    .name = "id",
+    .type = .bigint,
+    .primary_key = true,
+    .auto_increment = true,
+});
+
+try table.addColumn(.{
+    .name = "name",
+    .type = .varchar,
+    .length = 255,
+    .nullable = false,
+});
+
+try table.addColumn(.{
+    .name = "email",
+    .type = .varchar,
+    .length = 255,
+    .nullable = false,
+    .unique = true,
+});
+
+try table.addColumn(.{
+    .name = "created_at",
+    .type = .timestamp,
+    .nullable = false,
+});
+
+const create_sql = try table.toCreateTableSql(.postgresql, allocator);
+defer allocator.free(create_sql);</code></pre>
+
+          <h3>Supported Column Types</h3>
+          <ul>
+            <li><code>integer</code> - INTEGER</li>
+            <li><code>bigint</code> - BIGINT</li>
+            <li><code>text</code> - TEXT</li>
+            <li><code>varchar</code> - VARCHAR (with optional length)</li>
+            <li><code>boolean</code> - BOOLEAN</li>
+            <li><code>float</code> - FLOAT</li>
+            <li><code>double</code> - DOUBLE</li>
+            <li><code>timestamp</code> - TIMESTAMP</li>
+            <li><code>blob</code> - BLOB</li>
+            <li><code>json</code> - JSON/JSONB (PostgreSQL uses JSONB, MySQL uses JSON)</li>
+          </ul>
+        </section>
+
+        <section id="migrations" class="doc-section">
+          <h2>Migrations</h2>
+          <p>
+            Dig provides a SQL-based migration system for database schema management. Migrations are
+            stored as SQL files with up/down sections.
+          </p>
+
+          <h3>Migration Files</h3>
+          <p>Create migration files in a <code>migrations/</code> directory:</p>
+          <p><strong>File</strong>: <code>migrations/20251122_create_users_table.sql</code></p>
+          <pre><code class="code-block">-- Migration: Create users table
+
+-- up
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_users_email ON users(email);
+
+-- down
+DROP TABLE IF EXISTS users;</code></pre>
+
+          <h3>Standalone Migration Tool</h3>
+          <p>
+            Dig automatically provides a standalone migration CLI tool that runs independently from
+            your main application.
+          </p>
+
+          <p>Run migrations:</p>
+          <pre><code class="code-block"># Run migrations
+DB_TYPE=postgresql DB_DATABASE=mydb DB_USERNAME=user DB_PASSWORD=pass \
+  ./zig-out/bin/migrate up
+
+# Check status
+DB_TYPE=postgresql DB_DATABASE=mydb DB_USERNAME=user DB_PASSWORD=pass \
+  ./zig-out/bin/migrate status
+
+# Rollback
+DB_TYPE=postgresql DB_DATABASE=mydb DB_USERNAME=user DB_PASSWORD=pass \
+  ./zig-out/bin/migrate down</code></pre>
+        </section>
+
+        <section id="transactions" class="doc-section">
+          <h2>Transactions</h2>
+          <p>
+            Dig supports transaction management for both PostgreSQL and MySQL. Use transactions to
+            ensure data consistency across multiple operations.
+          </p>
+
+          <h3>Using Transactions</h3>
+          <pre><code class="code-block">try db.beginTransaction();
+errdefer db.rollback(); // Rollback on error
+
+try db.execute("INSERT INTO users (name) VALUES ('Alice')");
+try db.execute("UPDATE users SET active = true WHERE name = 'Alice'");
+
+try db.commit();</code></pre>
+        </section>
+
+        <section id="database-support" class="doc-section">
+          <h2>Database Support</h2>
+          <p>
+            Dig ORM provides full support for PostgreSQL and MySQL through complete C library bindings
+            and driver implementations.
+          </p>
+
+          <h3>PostgreSQL</h3>
+          <ul>
+            <li><strong>Status</strong>: ✅ Fully implemented</li>
+            <li><strong>Requirements</strong>: libpq development libraries (<code>libpq-dev</code>)</li>
+            <li><strong>Enable</strong>: <code>.postgresql = true</code> in <code>build.zig</code></li>
+            <li><strong>Features</strong>: Connection management, query execution, transactions, type conversion, JSONB support</li>
+          </ul>
+
+          <h3>MySQL</h3>
+          <ul>
+            <li><strong>Status</strong>: ✅ Fully implemented</li>
+            <li><strong>Requirements</strong>: libmysqlclient development libraries (<code>default-libmysqlclient-dev</code>)</li>
+            <li><strong>Enable</strong>: <code>.mysql = true</code> in <code>build.zig</code></li>
+            <li><strong>Features</strong>: Connection management, query execution, transactions, type conversion, JSON support</li>
+          </ul>
+
+          <h3>Conditional Compilation</h3>
+          <p>
+            Database drivers are disabled by default. You must explicitly enable the drivers you need
+            when adding Dig as a dependency:
+          </p>
+          <pre><code class="code-block">const dig = b.dependency("dig", .{
+    .target = target,
+    .optimize = optimize,
+    .postgresql = true,  // Explicitly enable PostgreSQL
+    .mysql = true,       // Explicitly enable MySQL
+});</code></pre>
+        </section>
+
+        <section id="api-reference" class="doc-section">
+          <h2>API Reference</h2>
+          <p>
+            This section summarizes the main APIs in Dig ORM. For complete documentation, refer to
+            the project's documentation files.
+          </p>
+
+          <h3>Connection</h3>
+          <ul>
+            <li><code>Database.connect(allocator, config)</code> - Create a database connection</li>
+            <li><code>Database.disconnect()</code> - Close the connection</li>
+            <li><code>Database.execute(query)</code> - Execute a SQL query</li>
+            <li><code>Database.query(query)</code> - Execute a query and return results</li>
+            <li><code>Database.beginTransaction()</code> - Start a transaction</li>
+            <li><code>Database.commit()</code> - Commit a transaction</li>
+            <li><code>Database.rollback()</code> - Rollback a transaction</li>
+          </ul>
+
+          <h3>Query Builders</h3>
+          <ul>
+            <li><strong>SelectQuery</strong>: <code>init</code>, <code>select</code>, <code>where</code>, <code>orderBy</code>, <code>limit</code>, <code>offset</code>, <code>toSql</code></li>
+            <li><strong>InsertQuery</strong>: <code>init</code>, <code>addValue</code>, <code>setValues</code>, <code>toSql</code></li>
+            <li><strong>UpdateQuery</strong>: <code>init</code>, <code>set</code>, <code>setMultiple</code>, <code>where</code>, <code>toSql</code></li>
+            <li><strong>DeleteQuery</strong>: <code>init</code>, <code>where</code>, <code>toSql</code></li>
+          </ul>
+
+          <h3>Schema</h3>
+          <ul>
+            <li><code>Table.init(allocator, name)</code> - Create a table definition</li>
+            <li><code>Table.addColumn(column)</code> - Add a column to the table</li>
+            <li><code>Table.toCreateTableSql(db_type, allocator)</code> - Generate CREATE TABLE SQL</li>
+          </ul>
+
+          <h3>Migrations</h3>
+          <ul>
+            <li><code>Manager.init(db, allocator)</code> - Create a migration manager</li>
+            <li><code>Manager.loadFromDirectory(dir)</code> - Load migrations from directory</li>
+            <li><code>Manager.migrate(migrations)</code> - Run pending migrations</li>
+            <li><code>Manager.rollback(migrations)</code> - Rollback last batch</li>
+            <li><code>Manager.reset(migrations)</code> - Rollback all migrations</li>
+            <li><code>Manager.status(migrations)</code> - Show migration status</li>
+          </ul>
+        </section>
+
+        <section id="project-structure" class="doc-section">
+          <h2>Project Structure</h2>
+          <p>The Dig ORM repository is organized as follows:</p>
+          <pre><code class="code-block">dig/
+├── src/
+│   ├── dig.zig                    # Module entry point
+│   ├── migrate.zig                # Migration CLI tool
+│   └── dig/                       # Module files directory
+│       ├── connection.zig         # Connection abstraction
+│       ├── db.zig                 # Database interface
+│       ├── query.zig              # Query builders
+│       ├── schema.zig             # Schema definitions
+│       ├── migration.zig          # Migration system
+│       ├── types.zig              # Type definitions
+│       ├── errors.zig             # Error definitions
+│       ├── drivers/               # Database drivers
+│       │   ├── postgresql.zig     # PostgreSQL driver
+│       │   └── mysql.zig          # MySQL driver
+│       └── libs/                  # C library bindings
+│           ├── libpq.zig          # PostgreSQL C API
+│           └── libmysql.zig       # MySQL C API
+├── tests/                         # Test files
+├── documents/                     # Documentation
+│   ├── specification.md           # Complete specification
+│   ├── api_reference.md           # API reference
+│   └── architecture.md            # Architecture document
+└── examples/                      # Usage guides
+    └── README.md                  # Migration tool guide</code></pre>
+        </section>
+      </main>
+    </div>
+
+    <footer class="site-footer">
+      <div class="site-footer-inner">
+        <span>&copy; 2025 HARMONICOM.</span>
+        <a href="https://github.com/HARMONICOM/dig" target="_blank" rel="noreferrer">GitHub</a>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>
+
