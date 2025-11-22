@@ -126,7 +126,7 @@ pub const Connection = struct {
 Query builders use the builder pattern for fluent API:
 
 ```zig
-var query = try SelectQuery.init(allocator, "users");
+var query = try dig.query.Select.init(allocator, "users");
 const sql = try query
     .select(&[_][]const u8{"id", "name"})
     .where("age", ">", .{ .integer = 18 })
@@ -173,7 +173,7 @@ pub fn query(...) !QueryResult
 
 ```zig
 // 1. Allocate query builder
-var query = try SelectQuery.init(allocator, "users");
+var query = try dig.query.Select.init(allocator, "users");
 defer query.deinit(); // Free query builder
 
 // 2. Build query (allocates internal structures)
@@ -252,7 +252,7 @@ Formatted SQL String
 
 ```zig
 // Step 1: Initialize
-var query = try SelectQuery.init(allocator, "users");
+var query = try dig.query.Select.init(allocator, "users");
 
 // Step 2: Build query structure
 query.select(&[_][]const u8{"id", "name"});
@@ -309,7 +309,7 @@ pub const MySQLConnection = struct {
 
 ### 6.3 Driver Registration
 
-Drivers are registered through the Database.connect() function:
+Drivers are registered through the Db.connect() function:
 
 ```zig
 switch (config.database_type) {
@@ -442,7 +442,7 @@ pub const DigError = error{
 
 3. **Register database type**:
    - Add to `DatabaseType` enum in `types.zig`
-   - Add case to `Database.connect()` in `db.zig`
+   - Add case to `Db.connect()` in `db.zig`
    - Add case to `disconnect()` for cleanup
 
 4. **Update build configuration**:

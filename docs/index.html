@@ -111,7 +111,7 @@
 
           <h3>1. Add Dig ORM as a dependency</h3>
           <p>Fetch Horizon using Zig's package manager:</p>
-          <pre><code class="code-block">zig fetch --save-exact=dig https://github.com/HARMONICOM/dig/archive/refs/tags/0.0.4.tar.gz</code></pre>
+          <pre><code class="code-block">zig fetch --save-exact=dig https://github.com/HARMONICOM/dig/archive/refs/tags/0.0.5.tar.gz</code></pre>
 
           <h3>2. Configure <code>build.zig</code></h3>
           <p>Import the Dig module and enable the database drivers you need:</p>
@@ -166,7 +166,7 @@ pub fn main() !void {
     defer db.disconnect();
 
     // Build and execute query
-    var query = try dig.query.SelectQuery.init(allocator, "users");
+    var query = try dig.query.Select.init(allocator, "users");
     defer query.deinit();
 
     const sql = try (try query
@@ -194,7 +194,7 @@ pub fn main() !void {
           </p>
 
           <h3>SELECT Queries</h3>
-          <pre><code class="code-block">var query = try dig.query.SelectQuery.init(allocator, "users");
+          <pre><code class="code-block">var query = try dig.query.Select.init(allocator, "users");
 defer query.deinit();
 
 const sql = try (try query
@@ -207,7 +207,7 @@ defer allocator.free(sql);</code></pre>
 
           <h3>INSERT Queries</h3>
           <p>Method chaining style:</p>
-          <pre><code class="code-block">var query = try dig.query.InsertQuery.init(allocator, "users");
+          <pre><code class="code-block">var query = try dig.query.Insert.init(allocator, "users");
 defer query.deinit();
 
 const sql = try (try (try query
@@ -218,7 +218,7 @@ const sql = try (try (try query
 defer allocator.free(sql);</code></pre>
 
           <p>Hash map style:</p>
-          <pre><code class="code-block">var query = try dig.query.InsertQuery.init(allocator, "users");
+          <pre><code class="code-block">var query = try dig.query.Insert.init(allocator, "users");
 defer query.deinit();
 
 var values = std.StringHashMap(dig.types.SqlValue).init(allocator);
@@ -232,7 +232,7 @@ const sql = try (try query.setValues(values)).toSql(.postgresql);
 defer allocator.free(sql);</code></pre>
 
           <h3>UPDATE Queries</h3>
-          <pre><code class="code-block">var query = try dig.query.UpdateQuery.init(allocator, "users");
+          <pre><code class="code-block">var query = try dig.query.Update.init(allocator, "users");
 defer query.deinit();
 
 const sql = try (try (try query
@@ -242,7 +242,7 @@ const sql = try (try (try query
 defer allocator.free(sql);</code></pre>
 
           <h3>DELETE Queries</h3>
-          <pre><code class="code-block">var query = try dig.query.DeleteQuery.init(allocator, "users");
+          <pre><code class="code-block">var query = try dig.query.Delete.init(allocator, "users");
 defer query.deinit();
 
 const sql = try (try query
@@ -415,21 +415,21 @@ try db.commit();</code></pre>
 
           <h3>Connection</h3>
           <ul>
-            <li><code>Database.connect(allocator, config)</code> - Create a database connection</li>
-            <li><code>Database.disconnect()</code> - Close the connection</li>
-            <li><code>Database.execute(query)</code> - Execute a SQL query</li>
-            <li><code>Database.query(query)</code> - Execute a query and return results</li>
-            <li><code>Database.beginTransaction()</code> - Start a transaction</li>
-            <li><code>Database.commit()</code> - Commit a transaction</li>
-            <li><code>Database.rollback()</code> - Rollback a transaction</li>
+            <li><code>dig.db.connect(allocator, config)</code> - Create a database connection</li>
+            <li><code>db.disconnect()</code> - Close the connection</li>
+            <li><code>db.execute(query)</code> - Execute a SQL query</li>
+            <li><code>db.query(query)</code> - Execute a query and return results</li>
+            <li><code>db.beginTransaction()</code> - Start a transaction</li>
+            <li><code>db.commit()</code> - Commit a transaction</li>
+            <li><code>db.rollback()</code> - Rollback a transaction</li>
           </ul>
 
           <h3>Query Builders</h3>
           <ul>
-            <li><strong>SelectQuery</strong>: <code>init</code>, <code>select</code>, <code>where</code>, <code>orderBy</code>, <code>limit</code>, <code>offset</code>, <code>toSql</code></li>
-            <li><strong>InsertQuery</strong>: <code>init</code>, <code>addValue</code>, <code>setValues</code>, <code>toSql</code></li>
-            <li><strong>UpdateQuery</strong>: <code>init</code>, <code>set</code>, <code>setMultiple</code>, <code>where</code>, <code>toSql</code></li>
-            <li><strong>DeleteQuery</strong>: <code>init</code>, <code>where</code>, <code>toSql</code></li>
+            <li><strong>Select</strong>: <code>init</code>, <code>select</code>, <code>where</code>, <code>orderBy</code>, <code>limit</code>, <code>offset</code>, <code>toSql</code></li>
+            <li><strong>Insert</strong>: <code>init</code>, <code>addValue</code>, <code>setValues</code>, <code>toSql</code></li>
+            <li><strong>Update</strong>: <code>init</code>, <code>set</code>, <code>setMultiple</code>, <code>where</code>, <code>toSql</code></li>
+            <li><strong>Delete</strong>: <code>init</code>, <code>where</code>, <code>toSql</code></li>
           </ul>
 
           <h3>Schema</h3>
@@ -472,12 +472,16 @@ try db.commit();</code></pre>
 │           ├── libpq.zig          # PostgreSQL C API
 │           └── libmysql.zig       # MySQL C API
 ├── tests/                         # Test files
-├── documents/                     # Documentation
-│   ├── specification.md           # Complete specification
-│   ├── api_reference.md           # API reference
-│   └── architecture.md            # Architecture document
-└── examples/                      # Usage guides
-    └── README.md                  # Migration tool guide</code></pre>
+└── documents/                     # User documentation
+    ├── README.md                  # Documentation index
+    ├── overview.md                # Project overview
+    ├── getting-started.md         # Installation and setup
+    ├── schema.md                  # Schema definition guide
+    ├── query-builders.md          # Query builders guide
+    ├── migrations.md              # Migration system guide
+    ├── database-drivers.md        # Database driver details
+    ├── api-reference.md           # API reference
+    └── architecture.md            # Architecture (for contributors)</code></pre>
         </section>
       </main>
     </div>

@@ -24,25 +24,27 @@ Dig ORM is a lightweight, type-safe SQL query builder library for Zig that provi
 
 📖 **[Online Documentation](https://harmonicom.github.io/dig/)** - Interactive documentation website
 
-Additional documentation:
-- **[Specification](documents/specification.md)** - Complete API specification and usage guide
-- **[API Reference](documents/api_reference.md)** - Detailed API documentation
-- **[Architecture](documents/architecture.md)** - System architecture and design
-- **[Migration Tool Guide](examples/README.md)** - Migration tool usage and examples
+📚 **User Documentation** (`documents/`):
+- **[Overview](documents/overview.md)** - Design goals and main features
+- **[Getting Started](documents/getting-started.md)** - Installation and first steps
+- **[Schema Definition](documents/schema.md)** - Table and column definitions
+- **[Query Builders](documents/query-builders.md)** - SELECT, INSERT, UPDATE, DELETE queries
+- **[Migrations](documents/migrations.md)** - Database schema versioning
+- **[Database Drivers](documents/database-drivers.md)** - PostgreSQL and MySQL details
+- **[API Reference](documents/api-reference.md)** - High-level API summary
+- **[Architecture](documents/architecture.md)** - System architecture (for contributors)
 
-## Installation
+## Quick Start
 
-Add Dig to your `build.zig.zon`:
+### Using Dig in Your Project
 
-```zig
-.dependencies = .{
-    .dig = .{
-        .path = "path/to/dig",
-    },
-}
+1. **Fetch Dig as a dependency:**
+
+```bash
+zig fetch --save-exact=dig https://github.com/HARMONICOM/dig/archive/refs/tags/0.0.5.tar.gz
 ```
 
-Then add it to your `build.zig`:
+2. **Configure `build.zig`:**
 
 ```zig
 const dig = b.dependency("dig", .{
@@ -61,11 +63,34 @@ const migrate_artifact = dig.artifact("migrate");
 b.installArtifact(migrate_artifact);
 ```
 
-**Build Options**: Drivers are disabled by default. You must explicitly enable the drivers you need using `.postgresql = true` or `.mysql = true`.
+**Note**: Database drivers are disabled by default. You must explicitly enable the drivers you need using `.postgresql = true` or `.mysql = true`.
 
-For detailed build configuration, see the [Specification](documents/specification.md#23-build-configuration).
+3. **Install database libraries:**
 
-## Quick Start
+```bash
+# PostgreSQL (Debian/Ubuntu)
+sudo apt-get install libpq-dev
+
+# MySQL (Debian/Ubuntu)
+sudo apt-get install default-libmysqlclient-dev
+
+# macOS (Homebrew)
+brew install postgresql@17
+brew install mysql-client
+
+# Docker (add to Dockerfile)
+RUN apt-get update && apt-get install -y libpq-dev default-libmysqlclient-dev
+```
+
+4. **Build and run:**
+
+```bash
+zig build run
+```
+
+📖 See [**Getting Started Guide**](documents/getting-started.md) for detailed setup instructions and [**Database Drivers**](documents/database-drivers.md) for driver configuration.
+
+## Minimal Example
 
 ### Connection
 
@@ -89,7 +114,7 @@ defer db.disconnect();
 
 ```zig
 // SELECT query
-var query = try dig.query.SelectQuery.init(allocator, "users");
+var query = try dig.query.Select.init(allocator, "users");
 defer query.deinit();
 
 const sql = try (try query
@@ -99,7 +124,7 @@ const sql = try (try query
 defer allocator.free(sql);
 
 // INSERT query
-var insert = try dig.query.InsertQuery.init(allocator, "users");
+var insert = try dig.query.Insert.init(allocator, "users");
 defer insert.deinit();
 
 const insert_sql = try (try (try insert
@@ -109,7 +134,7 @@ const insert_sql = try (try (try insert
 defer allocator.free(insert_sql);
 ```
 
-For more detailed examples (UPDATE, DELETE, transactions, schema definition, etc.), see the [Specification](documents/specification.md#5-usage-patterns).
+For more detailed examples (UPDATE, DELETE, transactions, schema definition, etc.), see the [Query Builders](documents/query-builders.md) documentation.
 
 ### Migrations
 
@@ -138,9 +163,7 @@ Run migrations:
 DB_TYPE=postgresql DB_DATABASE=mydb DB_USERNAME=user DB_PASSWORD=pass ./zig-out/bin/migrate up
 ```
 
-For complete migration documentation, see:
-- **[Specification - Migration System](documents/specification.md#36-migration-system)** - API and usage patterns
-- **[Migration Tool Guide](examples/README.md)** - CLI tool, Docker integration, and CI/CD examples
+For complete migration documentation, see the [Migrations](documents/migrations.md) guide.
 
 ## Database Support
 
@@ -161,7 +184,7 @@ Both drivers support:
 - Type conversion (INT, TEXT, FLOAT, BOOL, TIMESTAMP, JSON, etc.)
 - NULL value handling
 
-For detailed type mappings and driver implementation, see the [Specification](documents/specification.md#4-database-support).
+For detailed type mappings and driver implementation, see the [Database Drivers](documents/database-drivers.md) documentation.
 
 ## Project Structure
 
@@ -180,12 +203,16 @@ dig/
 │   │   ├── schema.zig             # Schema definitions
 │   │   └── types.zig              # Type definitions
 │   └── tests/                     # Test files
-├── documents/                     # Documentation
-│   ├── specification.md           # Complete API specification
-│   ├── api_reference.md           # API reference
-│   └── architecture.md            # Architecture document
-└── examples/                      # Usage guides
-    └── README.md                  # Migration tool guide
+├── documents/                     # User documentation
+│   ├── README.md                  # Documentation index
+│   ├── overview.md                # Project overview
+│   ├── getting-started.md         # Installation and setup
+│   ├── schema.md                  # Schema definition guide
+│   ├── query-builders.md          # Query builders guide
+│   ├── migrations.md              # Migration system guide
+│   ├── database-drivers.md        # Database driver details
+│   ├── api-reference.md           # API reference
+│   └── architecture.md            # Architecture (for contributors)
 ```
 
 ## Requirements
@@ -196,7 +223,7 @@ dig/
 
 ## Examples
 
-See test files in `src/tests/` for usage examples and the [Specification](documents/specification.md) for complete usage patterns.
+See test files in `src/tests/` for usage examples and the [documentation](documents/README.md) for complete usage patterns.
 
 ## License
 
