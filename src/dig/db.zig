@@ -9,6 +9,7 @@ const query_builder = @import("queryBuilder.zig");
 
 const postgresql = if (build_options.enable_postgresql) @import("drivers/postgresql.zig") else void;
 const mysql = if (build_options.enable_mysql) @import("drivers/mysql.zig") else void;
+const mock = @import("drivers/mock.zig");
 
 /// Database instance
 pub const Db = struct {
@@ -48,6 +49,13 @@ pub const Db = struct {
                 instance.conn_state = mysql_conn;
                 try instance.conn.connect(config, allocator);
             },
+            .mock => {
+                const mock_conn = try allocator.create(mock.MockConnection);
+                mock_conn.* = mock.MockConnection.init(allocator);
+                instance.conn = mock_conn.toConnection();
+                instance.conn_state = mock_conn;
+                try instance.conn.connect(config, allocator);
+            },
         }
 
         return instance;
@@ -68,6 +76,11 @@ pub const Db = struct {
                     const mysql_conn: *mysql.MySQLConnection = @ptrCast(@alignCast(self.conn_state));
                     self.allocator.destroy(mysql_conn);
                 }
+            },
+            .mock => {
+                const mock_conn: *mock.MockConnection = @ptrCast(@alignCast(self.conn_state));
+                mock_conn.deinit();
+                self.allocator.destroy(mock_conn);
             },
         }
     }

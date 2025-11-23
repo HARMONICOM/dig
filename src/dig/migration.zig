@@ -293,6 +293,14 @@ pub const Manager = struct {
             \\    batch INT NOT NULL
             \\)
             ,
+            .mock =>
+            \\CREATE TABLE _dig_migrations (
+            \\    id VARCHAR(255) PRIMARY KEY,
+            \\    name VARCHAR(255) NOT NULL,
+            \\    applied_at BIGINT NOT NULL,
+            \\    batch INTEGER NOT NULL
+            \\)
+            ,
         };
 
         try self.db.execute(create_table_sql);
@@ -315,6 +323,7 @@ pub const Manager = struct {
             \\WHERE table_schema = DATABASE()
             \\AND table_name = '_dig_migrations'
             ,
+            .mock => "SELECT 0", // Mock always returns false for table existence
         };
 
         var result = try self.db.query(check_sql);

@@ -6,6 +6,7 @@ const std = @import("std");
 pub const DatabaseType = enum {
     postgresql,
     mysql,
+    mock, // Mock driver for testing
 };
 
 /// SQL value types
@@ -77,6 +78,11 @@ pub const ConnectionConfig = struct {
                 allocator,
                 "mysql://{s}:{s}@{s}:{d}/{s}",
                 .{ self.username, self.password, self.host, self.port, self.database },
+            ),
+            .mock => try std.fmt.allocPrint(
+                allocator,
+                "mock://{s}:{d}/{s}",
+                .{ self.host, self.port, self.database },
             ),
         };
     }

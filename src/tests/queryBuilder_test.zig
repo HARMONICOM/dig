@@ -9,7 +9,7 @@ test "QueryBuilder - SELECT with all columns" {
 
     // Create mock database connection
     var db = try dig.db.connect(allocator, .{
-        .database_type = .postgresql,
+        .database_type = .mock,
         .host = "localhost",
         .port = 5432,
         .database = "test",
@@ -30,7 +30,7 @@ test "QueryBuilder - SELECT with specific columns" {
     const allocator = testing.allocator;
 
     var db = try dig.db.connect(allocator, .{
-        .database_type = .postgresql,
+        .database_type = .mock,
         .host = "localhost",
         .port = 5432,
         .database = "test",
@@ -55,7 +55,7 @@ test "QueryBuilder - INSERT" {
     const allocator = testing.allocator;
 
     var db = try dig.db.connect(allocator, .{
-        .database_type = .postgresql,
+        .database_type = .mock,
         .host = "localhost",
         .port = 5432,
         .database = "test",
@@ -76,7 +76,7 @@ test "QueryBuilder - UPDATE" {
     const allocator = testing.allocator;
 
     var db = try dig.db.connect(allocator, .{
-        .database_type = .postgresql,
+        .database_type = .mock,
         .host = "localhost",
         .port = 5432,
         .database = "test",
@@ -97,7 +97,7 @@ test "QueryBuilder - DELETE" {
     const allocator = testing.allocator;
 
     var db = try dig.db.connect(allocator, .{
-        .database_type = .postgresql,
+        .database_type = .mock,
         .host = "localhost",
         .port = 5432,
         .database = "test",
@@ -117,7 +117,7 @@ test "QueryBuilder - chaining with HashMap" {
     const allocator = testing.allocator;
 
     var db = try dig.db.connect(allocator, .{
-        .database_type = .postgresql,
+        .database_type = .mock,
         .host = "localhost",
         .port = 5432,
         .database = "test",
@@ -144,7 +144,7 @@ test "QueryBuilder - UPDATE with HashMap" {
     const allocator = testing.allocator;
 
     var db = try dig.db.connect(allocator, .{
-        .database_type = .postgresql,
+        .database_type = .mock,
         .host = "localhost",
         .port = 5432,
         .database = "test",
@@ -171,7 +171,7 @@ test "QueryBuilder - INNER JOIN" {
     const allocator = testing.allocator;
 
     var db = try dig.db.connect(allocator, .{
-        .database_type = .postgresql,
+        .database_type = .mock,
         .host = "localhost",
         .port = 5432,
         .database = "test",
@@ -191,7 +191,7 @@ test "QueryBuilder - LEFT JOIN" {
     const allocator = testing.allocator;
 
     var db = try dig.db.connect(allocator, .{
-        .database_type = .postgresql,
+        .database_type = .mock,
         .host = "localhost",
         .port = 5432,
         .database = "test",
@@ -211,7 +211,7 @@ test "QueryBuilder - RIGHT JOIN" {
     const allocator = testing.allocator;
 
     var db = try dig.db.connect(allocator, .{
-        .database_type = .postgresql,
+        .database_type = .mock,
         .host = "localhost",
         .port = 5432,
         .database = "test",
@@ -231,7 +231,7 @@ test "QueryBuilder - FULL OUTER JOIN" {
     const allocator = testing.allocator;
 
     var db = try dig.db.connect(allocator, .{
-        .database_type = .postgresql,
+        .database_type = .mock,
         .host = "localhost",
         .port = 5432,
         .database = "test",
@@ -251,7 +251,7 @@ test "QueryBuilder - multiple JOINs with WHERE" {
     const allocator = testing.allocator;
 
     var db = try dig.db.connect(allocator, .{
-        .database_type = .postgresql,
+        .database_type = .mock,
         .host = "localhost",
         .port = 5432,
         .database = "test",
@@ -275,7 +275,7 @@ test "QueryBuilder - JOIN with complex chaining" {
     const allocator = testing.allocator;
 
     var db = try dig.db.connect(allocator, .{
-        .database_type = .postgresql,
+        .database_type = .mock,
         .host = "localhost",
         .port = 5432,
         .database = "test",
@@ -288,12 +288,11 @@ test "QueryBuilder - JOIN with complex chaining" {
     defer builder.deinit();
 
     // Verify we can chain all methods together
-    _ = try builder
-        .select(&.{ "u.id", "u.name", "p.title" })
-        .join("posts p", "users.id", "p.user_id")
-        .where("u.age", ">=", .{ .integer = 18 })
-        .where("p.published", "=", .{ .boolean = true })
-        .orderBy("u.name", .asc)
-        .limit(20)
-        .offset(0);
+    _ = try builder.select(&.{ "u.id", "u.name", "p.title" });
+    _ = try builder.join("posts p", "users.id", "p.user_id");
+    _ = try builder.where("u.age", ">=", .{ .integer = 18 });
+    _ = try builder.where("p.published", "=", .{ .boolean = true });
+    _ = try builder.orderBy("u.name", .asc);
+    _ = try builder.limit(20);
+    _ = try builder.offset(0);
 }
