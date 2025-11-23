@@ -5,6 +5,7 @@ const build_options = @import("build_options");
 const errors = @import("errors.zig");
 const types = @import("types.zig");
 const connection = @import("connection.zig");
+const query_builder = @import("queryBuilder.zig");
 
 const postgresql = if (build_options.enable_postgresql) @import("drivers/postgresql.zig") else void;
 const mysql = if (build_options.enable_mysql) @import("drivers/mysql.zig") else void;
@@ -94,5 +95,22 @@ pub const Db = struct {
     /// Rollback a transaction
     pub fn rollback(self: *Self) errors.DigError!void {
         return self.conn.rollback();
+    }
+
+    /// Start a query builder for a table
+    /// Returns a QueryBuilder that can be used to chain query methods
+    /// and execute them directly on this connection
+    ///
+    /// Example:
+    /// ```zig
+    /// var result = try db.table("users")
+    ///     .select(&.{"id", "name"})
+    ///     .where("age", ">", .{.integer = 18})
+    ///     .orderBy("name", .asc)
+    ///     .get();
+    /// defer result.deinit();
+    /// ```
+    pub fn table(self: *Self, table_name: []const u8) errors.DigError!query_builder.QueryBuilder {
+        return query_builder.QueryBuilder.init(&self.conn, table_name, self.db_type, self.allocator);
     }
 };

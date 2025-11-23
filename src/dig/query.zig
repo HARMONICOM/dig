@@ -10,6 +10,7 @@ pub const Select = struct {
 
     table: []const u8,
     columns: []const []const u8,
+    joins: std.ArrayList(JoinClause),
     where_clauses: std.ArrayList(WhereClause),
     order_by: ?OrderBy = null,
     limit_value: ?usize = null,
@@ -17,6 +18,21 @@ pub const Select = struct {
     allocator: std.mem.Allocator,
 
     pub const Direction = enum { asc, desc };
+
+    pub const JoinType = enum {
+        inner,
+        left,
+        right,
+        full,
+    };
+
+    pub const JoinClause = struct {
+        join_type: JoinType,
+        table: []const u8,
+        left_column: []const u8,
+        right_column: []const u8,
+    };
+
     pub const WhereClause = struct {
         column: []const u8,
         operator: []const u8,
@@ -32,6 +48,7 @@ pub const Select = struct {
         return .{
             .table = table,
             .columns = &.{},
+            .joins = try std.ArrayList(JoinClause).initCapacity(allocator, 4),
             .where_clauses = try std.ArrayList(WhereClause).initCapacity(allocator, 4),
             .order_by = null,
             .limit_value = null,
@@ -42,6 +59,50 @@ pub const Select = struct {
 
     pub fn select(self: *Self, columns: []const []const u8) *Self {
         self.columns = columns;
+        return self;
+    }
+
+    /// Add INNER JOIN clause
+    pub fn join(self: *Self, table: []const u8, left_column: []const u8, right_column: []const u8) !*Self {
+        try self.joins.append(self.allocator, .{
+            .join_type = .inner,
+            .table = table,
+            .left_column = left_column,
+            .right_column = right_column,
+        });
+        return self;
+    }
+
+    /// Add LEFT JOIN clause
+    pub fn leftJoin(self: *Self, table: []const u8, left_column: []const u8, right_column: []const u8) !*Self {
+        try self.joins.append(self.allocator, .{
+            .join_type = .left,
+            .table = table,
+            .left_column = left_column,
+            .right_column = right_column,
+        });
+        return self;
+    }
+
+    /// Add RIGHT JOIN clause
+    pub fn rightJoin(self: *Self, table: []const u8, left_column: []const u8, right_column: []const u8) !*Self {
+        try self.joins.append(self.allocator, .{
+            .join_type = .right,
+            .table = table,
+            .left_column = left_column,
+            .right_column = right_column,
+        });
+        return self;
+    }
+
+    /// Add FULL OUTER JOIN clause
+    pub fn fullJoin(self: *Self, table: []const u8, left_column: []const u8, right_column: []const u8) !*Self {
+        try self.joins.append(self.allocator, .{
+            .join_type = .full,
+            .table = table,
+            .left_column = left_column,
+            .right_column = right_column,
+        });
         return self;
     }
 
@@ -89,6 +150,22 @@ pub const Select = struct {
 
         try writer.print(" FROM {s}", .{self.table});
 
+        // Add JOIN clauses
+        for (self.joins.items) |join_clause| {
+            const join_type_str = switch (join_clause.join_type) {
+                .inner => "INNER JOIN",
+                .left => "LEFT JOIN",
+                .right => "RIGHT JOIN",
+                .full => "FULL OUTER JOIN",
+            };
+            try writer.print(" {s} {s} ON {s} = {s}", .{
+                join_type_str,
+                join_clause.table,
+                join_clause.left_column,
+                join_clause.right_column,
+            });
+        }
+
         if (self.where_clauses.items.len > 0) {
             try writer.writeAll(" WHERE ");
             for (self.where_clauses.items, 0..) |clause, i| {
@@ -115,6 +192,7 @@ pub const Select = struct {
     }
 
     pub fn deinit(self: *Self) void {
+        self.joins.deinit(self.allocator);
         self.where_clauses.deinit(self.allocator);
     }
 };

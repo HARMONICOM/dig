@@ -71,7 +71,7 @@ test "SqlMigration: migrate and rollback" {
     var manager = dig.migration.Manager.init(&db, allocator);
 
     // Load migrations from test directory
-    const test_migrations_dir = "src/tests/migrations";
+    const test_migrations_dir = "src/tests/database/migrations";
     var migrations = try manager.loadFromDirectory(test_migrations_dir);
     defer {
         for (migrations.items) |*migration| {
@@ -118,7 +118,7 @@ test "SqlMigration: load from directory" {
     var manager = dig.migration.Manager.init(&db, allocator);
 
     // Load migrations from test directory
-    const test_migrations_dir = "src/tests/migrations";
+    const test_migrations_dir = "src/tests/database/migrations";
     var migrations = try manager.loadFromDirectory(test_migrations_dir);
     defer {
         for (migrations.items) |*migration| {
@@ -149,7 +149,7 @@ test "SqlMigration: full migration cycle with directory" {
     var manager = dig.migration.Manager.init(&db, allocator);
 
     // Load migrations from test directory
-    const test_migrations_dir = "src/tests/migrations";
+    const test_migrations_dir = "src/tests/database/migrations";
     var migrations = try manager.loadFromDirectory(test_migrations_dir);
     defer {
         for (migrations.items) |*migration| {

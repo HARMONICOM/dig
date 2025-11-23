@@ -41,7 +41,7 @@ Dig ORM is a lightweight, type-safe SQL query builder library for Zig that provi
 1. **Fetch Dig as a dependency:**
 
 ```bash
-zig fetch --save-exact=dig https://github.com/HARMONICOM/dig/archive/refs/tags/0.0.5.tar.gz
+zig fetch --save-exact=dig https://github.com/HARMONICOM/dig/archive/refs/tags/0.0.6.tar.gz
 ```
 
 2. **Configure `build.zig`:**
@@ -61,6 +61,10 @@ b.installArtifact(exe);
 // Install migration tool (automatically built by Dig)
 const migrate_artifact = dig.artifact("migrate");
 b.installArtifact(migrate_artifact);
+
+// Install seeder tool (automatically built by Dig)
+const seeder_artifact = dig.artifact("seeder");
+b.installArtifact(seeder_artifact);
 ```
 
 **Note**: Database drivers are disabled by default. You must explicitly enable the drivers you need using `.postgresql = true` or `.mysql = true`.
@@ -106,11 +110,50 @@ const config = dig.types.ConnectionConfig{
     .password = "pass",
 };
 
-var db = try dig.db.connect(allocator, config);
-defer db.disconnect();
+var conn = try dig.db.connect(allocator, config);
+defer conn.disconnect();
 ```
 
 ### Building Queries
+
+**Recommended: Chainable Query Builder**
+
+Build and execute queries directly on the database connection:
+
+```zig
+// SELECT query - build and execute in one chain
+var result = try conn.table("users")
+    .select(&.{"id", "name", "email"})
+    .where("age", ">", .{.integer = 18})
+    .orderBy("name", .asc)
+    .limit(10)
+    .get();
+defer result.deinit();
+
+// INSERT query - chain and execute
+try conn.table("users")
+    .addValue("name", .{.text = "John Doe"})
+    .addValue("email", .{.text = "john@example.com"})
+    .addValue("age", .{.integer = 30})
+    .execute();
+
+// UPDATE query
+try conn.table("users")
+    .set("name", .{.text = "Jane Doe"})
+    .set("age", .{.integer = 31})
+    .where("id", "=", .{.integer = 1})
+    .execute();
+
+// DELETE query
+try conn.table("users")
+    .delete()
+    .where("age", "<", .{.integer = 18})
+    .execute();
+```
+
+**Traditional Query Builder** (still supported)
+
+Generate SQL separately and execute:
 
 ```zig
 // SELECT query
@@ -123,6 +166,9 @@ const sql = try (try query
     .toSql(.postgresql);
 defer allocator.free(sql);
 
+var result = try conn.query(sql);
+defer result.deinit();
+
 // INSERT query
 var insert = try dig.query.Insert.init(allocator, "users");
 defer insert.deinit();
@@ -132,6 +178,8 @@ const insert_sql = try (try (try insert
     .addValue("email", .{ .text = "john@example.com" }))
     .toSql(.postgresql);
 defer allocator.free(insert_sql);
+
+try conn.execute(insert_sql);
 ```
 
 For more detailed examples (UPDATE, DELETE, transactions, schema definition, etc.), see the [Query Builders](documents/query-builders.md) documentation.
@@ -160,10 +208,71 @@ DROP TABLE IF EXISTS users;
 Run migrations:
 ```bash
 # Run migrations
-DB_TYPE=postgresql DB_DATABASE=mydb DB_USERNAME=user DB_PASSWORD=pass ./zig-out/bin/migrate up
+DB_TYPE=postgresql DB_DATABASE=mydb DB_USERNAME=user DB_PASSWORD=pass ./zig-out/bin/migrate up --dir database/migrations
 ```
 
 For complete migration documentation, see the [Migrations](documents/migrations.md) guide.
+
+### Seeding Data
+
+Dig provides a seeder tool to populate your database with initial data using SQL files.
+
+**Example Seeder File** (`database/seeders/development/01_seed_users.sql`):
+```sql
+-- Seed initial users data
+
+INSERT INTO users (name, email) VALUES ('Admin User', 'admin@example.com');
+INSERT INTO users (name, email) VALUES ('Test User 1', 'user1@example.com');
+INSERT INTO users (name, email) VALUES ('Test User 2', 'user2@example.com');
+```
+
+**Using the Seeder Tool**:
+
+```bash
+# Build the seeder (included when building Dig)
+zig build
+
+# Run seeders from default directory (seeders/)
+DB_TYPE=postgresql DB_DATABASE=mydb DB_USERNAME=user DB_PASSWORD=pass ./zig-out/bin/seeder run
+
+# Run seeders from a specific subdirectory
+DB_TYPE=postgresql DB_DATABASE=mydb DB_USERNAME=user DB_PASSWORD=pass ./zig-out/bin/seeder run development --dir database/seeders
+
+# Run production seeders
+DB_TYPE=postgresql DB_DATABASE=mydb DB_USERNAME=user DB_PASSWORD=pass ./zig-out/bin/seeder run production --dir database/seeders
+
+# Run seeders directly from a path (no subdirectory)
+DB_TYPE=postgresql DB_DATABASE=mydb DB_USERNAME=user DB_PASSWORD=pass ./zig-out/bin/seeder run --dir database/seeders/development
+```
+
+**Recommended Directory Structure with Subdirectories**:
+```
+database/
+├── migrations/                    # Schema migrations
+│   ├── 20251122_create_users_table.sql
+│   └── 20251123_create_posts_table.sql
+└── seeders/                       # Data seeders
+    ├── development/               # Development environment seeds
+    │   ├── 01_seed_users.sql
+    │   └── 02_seed_posts.sql
+    ├── production/                # Production environment seeds
+    │   └── 01_seed_admin.sql
+    └── testing/                   # Testing environment seeds
+        └── 01_seed_test_data.sql
+```
+
+**Simple Structure** (without subdirectories):
+```
+database/
+├── migrations/          # Schema migrations
+│   ├── 20251122_create_users_table.sql
+│   └── 20251123_create_posts_table.sql
+└── seeders/            # Data seeders
+    ├── 01_seed_users.sql
+    └── 02_seed_posts.sql
+```
+
+Seeder files are executed in alphabetical order. Unlike migrations, seeders don't track state and can be run multiple times. Using subdirectories allows you to organize seeders by environment (development, production, testing, etc.).
 
 ## Database Support
 
@@ -193,6 +302,7 @@ dig/
 ├── src/
 │   ├── dig.zig                    # Module entry point
 │   ├── migrate.zig                # Migration CLI tool (auto-built)
+│   ├── seeder.zig                 # Seeder CLI tool (auto-built)
 │   ├── dig/                       # Module files directory
 │   │   ├── connection.zig         # Connection abstraction
 │   │   ├── db.zig                 # Database interface
@@ -200,9 +310,15 @@ dig/
 │   │   ├── libs/                  # C library bindings
 │   │   ├── migration.zig          # Migration system
 │   │   ├── query.zig              # Query builders
+│   │   ├── queryBuilder.zig       # Chainable query builder
 │   │   ├── schema.zig             # Schema definitions
 │   │   └── types.zig              # Type definitions
 │   └── tests/                     # Test files
+│       └── database/              # Test database files
+│           ├── migrations/        # Test migrations
+│           └── seeders/           # Test seeders
+│               ├── development/   # Development environment seeds
+│               └── production/    # Production environment seeds
 ├── documents/                     # User documentation
 │   ├── README.md                  # Documentation index
 │   ├── overview.md                # Project overview

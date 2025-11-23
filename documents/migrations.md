@@ -94,7 +94,27 @@ DROP TABLE IF EXISTS users;
 
 ## 3. Migration Directory Structure
 
-Create a `migrations/` directory in your project root:
+Create a `database/migrations/` directory in your project root (or use `migrations/` for simple projects):
+
+**Recommended Structure** (with migrations and seeders):
+
+```text
+my-project/
+├── src/
+│   └── main.zig
+├── database/
+│   ├── migrations/
+│   │   ├── 20251122_create_users_table.sql
+│   │   ├── 20251123_create_posts_table.sql
+│   │   └── 20251124_add_user_roles.sql
+│   └── seeders/                         # Optional: Data seeding files
+│       ├── 01_seed_users.sql
+│       └── 02_seed_posts.sql
+├── build.zig
+└── build.zig.zon
+```
+
+**Simple Structure** (migrations only):
 
 ```text
 my-project/
@@ -109,6 +129,8 @@ my-project/
 ```
 
 **Best Practice**: Keep migration files in version control (git) to track schema changes.
+
+**Note**: If you also use Dig's seeder tool, the `database/` directory structure keeps migrations and seeders organized together. See the main README for seeder documentation.
 
 ---
 
@@ -186,14 +208,14 @@ DB_PASSWORD=pass \
 
 Default migration directory: `./migrations/`
 
-Custom migration directory:
+Custom migration directory (e.g., for organized structure):
 
 ```bash
 DB_TYPE=postgresql \
 DB_DATABASE=mydb \
 DB_USERNAME=user \
 DB_PASSWORD=pass \
-  ./zig-out/bin/migrate up --dir=db/migrations
+  ./zig-out/bin/migrate up --dir database/migrations
 ```
 
 #### Roll Back Last Migration Batch
