@@ -158,6 +158,7 @@ fn parseConfig(allocator: std.mem.Allocator) !Config {
     else switch (db_type) {
         .postgresql => @as(u16, 5432),
         .mysql => @as(u16, 3306),
+        .mock => @as(u16, 0), // Mock driver doesn't use a real port
     };
 
     const db_name_raw = env_map.get("DB_DATABASE") orelse {
