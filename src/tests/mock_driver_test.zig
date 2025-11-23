@@ -3,10 +3,9 @@
 const std = @import("std");
 const testing = std.testing;
 const dig = @import("dig");
-const mock = @import("dig").connection.@"drivers/mock.zig";
 
-// Import mock driver directly
-const MockConnection = @import("../dig/drivers/mock.zig").MockConnection;
+// Import mock driver
+const MockConnection = dig.mock.MockConnection;
 
 test "MockDriver: basic connection and disconnection" {
     const allocator = testing.allocator;

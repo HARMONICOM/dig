@@ -50,10 +50,17 @@ pub const MockConnection = struct {
     next_result_index: usize = 0,
 
     pub fn init(allocator: std.mem.Allocator) Self {
-        return .{
+        return Self{
             .allocator = allocator,
-            .executed_queries = std.ArrayList([]const u8).init(allocator),
-            .mock_results = std.ArrayList(MockResult).init(allocator),
+            .is_connected = false,
+            .should_fail_connect = false,
+            .should_fail_execute = false,
+            .should_fail_query = false,
+            .should_fail_transaction = false,
+            .in_transaction = false,
+            .executed_queries = std.ArrayList([]const u8){},
+            .mock_results = std.ArrayList(MockResult){},
+            .next_result_index = 0,
         };
     }
 
@@ -61,12 +68,12 @@ pub const MockConnection = struct {
         for (self.executed_queries.items) |query| {
             self.allocator.free(query);
         }
-        self.executed_queries.deinit();
+        self.executed_queries.deinit(self.allocator);
 
         for (self.mock_results.items) |*result| {
             result.deinit();
         }
-        self.mock_results.deinit();
+        self.mock_results.deinit(self.allocator);
     }
 
     /// Add a mock result that will be returned by the next query
@@ -91,7 +98,7 @@ pub const MockConnection = struct {
             dup_rows[i] = dup_row;
         }
 
-        try self.mock_results.append(.{
+        try self.mock_results.append(self.allocator, .{
             .columns = dup_columns,
             .rows = dup_rows,
             .allocator = self.allocator,
@@ -165,7 +172,7 @@ pub const MockConnection = struct {
 
         // Store executed query
         const query_copy = try self.allocator.dupe(u8, query);
-        try self.executed_queries.append(query_copy);
+        try self.executed_queries.append(self.allocator, query_copy);
     }
 
     /// Query implementation
@@ -182,7 +189,7 @@ pub const MockConnection = struct {
 
         // Store executed query
         const query_copy = try self.allocator.dupe(u8, query);
-        try self.executed_queries.append(query_copy);
+        try self.executed_queries.append(self.allocator, query_copy);
 
         // Return mock result if available
         if (self.next_result_index < self.mock_results.items.len) {
@@ -288,7 +295,7 @@ pub const MockConnection = struct {
     }
 
     /// Convert to Connection interface
-    pub fn toConnection(self: *Self) connection.Connection {
+    pub fn toConnection(self: *Self) connection {
         return .{
             .vtable = &.{
                 .connect = connectImpl,

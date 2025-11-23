@@ -6,19 +6,19 @@ const dig = @import("dig");
 
 test "Connection: VTable structure exists" {
     // Verify that Connection.VTable is defined
-    _ = dig.connection.VTable;
+    _ = dig.connection.Connection.VTable;
 }
 
 test "Connection: QueryResult structure exists" {
     // Verify that QueryResult is defined
-    _ = dig.connection.QueryResult;
+    _ = dig.connection.Connection.QueryResult;
 }
 
 test "Connection: QueryResult deinit" {
     const allocator = testing.allocator;
-    var result = dig.connection.QueryResult{
+    var result = dig.connection.Connection.QueryResult{
         .columns = try allocator.alloc([]const u8, 0),
-        .rows = try allocator.alloc(dig.connection.QueryResult.Row, 0),
+        .rows = try allocator.alloc(dig.connection.Connection.QueryResult.Row, 0),
         .allocator = allocator,
     };
     defer result.deinit();
@@ -35,9 +35,9 @@ test "Connection: QueryResult with empty rows" {
     columns[0] = col1;
     columns[1] = col2;
 
-    const rows = try allocator.alloc(dig.connection.QueryResult.Row, 0);
+    const rows = try allocator.alloc(dig.connection.Connection.QueryResult.Row, 0);
 
-    var result = dig.connection.QueryResult{
+    var result = dig.connection.Connection.QueryResult{
         .columns = columns,
         .rows = rows,
         .allocator = allocator,
@@ -68,7 +68,7 @@ test "Connection: Row get by column name" {
     values[2] = .{ .integer = 30 };
 
     // Create row with column references
-    const row = dig.connection.QueryResult.Row{
+    const row = dig.connection.Connection.QueryResult.Row{
         .values = values,
         .columns = columns,
     };
@@ -111,9 +111,9 @@ test "Connection: QueryResult getColumnIndex" {
     columns[1] = col2;
     columns[2] = col3;
 
-    const rows = try allocator.alloc(dig.connection.QueryResult.Row, 0);
+    const rows = try allocator.alloc(dig.connection.Connection.QueryResult.Row, 0);
 
-    var result = dig.connection.QueryResult{
+    var result = dig.connection.Connection.QueryResult{
         .columns = columns,
         .rows = rows,
         .allocator = allocator,

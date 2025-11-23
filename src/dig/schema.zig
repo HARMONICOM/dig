@@ -35,28 +35,33 @@ pub const Column = struct {
             .bigint => switch (db_type) {
                 .postgresql => "BIGINT",
                 .mysql => "BIGINT",
+                .mock => "BIGINT",
             },
             .text => "TEXT",
             .varchar => if (self.length) |len| {
                 return switch (db_type) {
                     .postgresql => try std.fmt.allocPrint(allocator, "VARCHAR({d})", .{len}),
                     .mysql => try std.fmt.allocPrint(allocator, "VARCHAR({d})", .{len}),
+                    .mock => try std.fmt.allocPrint(allocator, "VARCHAR({d})", .{len}),
                 };
             } else "VARCHAR(255)",
             .boolean => switch (db_type) {
                 .postgresql => "BOOLEAN",
                 .mysql => "BOOLEAN",
+                .mock => "BOOLEAN",
             },
             .float => "FLOAT",
             .double => "DOUBLE",
             .timestamp => switch (db_type) {
                 .postgresql => "TIMESTAMP",
                 .mysql => "TIMESTAMP",
+                .mock => "TIMESTAMP",
             },
             .blob => "BLOB",
             .json => switch (db_type) {
                 .postgresql => "JSONB",
                 .mysql => "JSON",
+                .mock => "JSON",
             },
         };
     }
@@ -108,6 +113,7 @@ pub const Table = struct {
                 switch (db_type) {
                     .postgresql => try writer.writeAll(" SERIAL"),
                     .mysql => try writer.writeAll(" AUTO_INCREMENT"),
+                    .mock => try writer.writeAll(" AUTO_INCREMENT"),
                 }
             }
             if (col.unique) try writer.writeAll(" UNIQUE");
