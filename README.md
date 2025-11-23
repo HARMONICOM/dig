@@ -41,7 +41,7 @@ Dig ORM is a lightweight, type-safe SQL query builder library for Zig that provi
 1. **Fetch Dig as a dependency:**
 
 ```bash
-zig fetch --save-exact=dig https://github.com/HARMONICOM/dig/archive/refs/tags/0.1.0.tar.gz
+zig fetch --save-exact=dig https://github.com/HARMONICOM/dig/archive/refs/tags/v0.1.0.tar.gz
 ```
 
 2. **Configure `build.zig`:**
