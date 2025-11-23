@@ -12,4 +12,5 @@ pub const DigError = error{
     UnsupportedDatabase,
     InvalidParameter,
     OutOfMemory,
+    QueryBuildError,
 };

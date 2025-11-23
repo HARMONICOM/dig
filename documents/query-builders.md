@@ -13,15 +13,68 @@ Query builders allow you to:
 - Generate database-specific SQL (PostgreSQL, MySQL)
 - Use type-safe values with `SqlValue` union type
 - Avoid manual SQL string concatenation
+- Execute queries directly from the builder (recommended)
+- Or generate SQL and execute separately (traditional approach)
 
-All query builders follow the same pattern:
+### 1.1 Two Ways to Use Query Builders
 
-1. Initialize with `init(allocator, table_name)`
-2. Build query with method chaining
-3. Generate SQL with `toSql(database_type)`
-4. Free resources with `deinit()`
+**Method 1: Chainable Query Builder (Recommended)**
+
+Start from a `Db` connection and chain methods directly, then execute:
+
+```zig
+const std = @import("std");
+const dig = @import("dig");
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // Connect to database
+    var conn = try dig.db.connect(allocator, .{
+        .database_type = .postgresql,
+        .host = "localhost",
+        .port = 5432,
+        .database = "mydb",
+        .username = "user",
+        .password = "pass",
+    });
+    defer conn.disconnect();
+
+    // Build and execute query in one chain
+    var result = try conn.table("users")
+        .select(&.{"id", "name", "email"})
+        .where("age", ">", .{.integer = 18})
+        .orderBy("name", .asc)
+        .limit(10)
+        .get();
+    defer result.deinit();
+
+    // Process results...
+}
+```
+
+**Method 2: Traditional Query Builder**
+
+Create a query builder separately, generate SQL, and execute:
+
+```zig
+// Create query builder
+var query = try dig.query.Select.init(allocator, "users");
+defer query.deinit();
+
+_ = try query.select(&.{"id", "name"});
+const sql = try query.toSql(.postgresql);
+defer allocator.free(sql);
+
+// Execute separately
+var result = try conn.query(sql);
+defer result.deinit();
+```
 
 **Query Builder Types**:
+- `dig.queryBuilder.QueryBuilder` - Chainable query builder (starts from `conn.table()`)
 - `dig.query.Select` - SELECT query builder
 - `dig.query.Insert` - INSERT query builder
 - `dig.query.Update` - UPDATE query builder
@@ -71,11 +124,318 @@ const created: SqlValue = .{ .timestamp = 1700000000 };
 
 ---
 
-## 3. SELECT Query Builder
+## 3. Chainable Query Builder (Recommended)
+
+The chainable query builder provides a convenient way to build and execute queries directly from your database connection.
+
+### 3.1 Starting a Query
+
+Use `conn.table()` to start building a query:
+
+```zig
+var conn = try dig.db.connect(allocator, config);
+defer conn.disconnect();
+
+var builder = try conn.table("users");
+defer builder.deinit();
+```
+
+### 3.2 SELECT Queries
+
+#### Basic SELECT
+
+```zig
+// Select all columns
+var result = try conn.table("users").get();
+defer result.deinit();
+```
+
+#### Select Specific Columns
+
+```zig
+var result = try conn.table("users")
+    .select(&.{"id", "name", "email"})
+    .get();
+defer result.deinit();
+```
+
+#### With WHERE Clause
+
+```zig
+var result = try conn.table("users")
+    .select(&.{"id", "name"})
+    .where("age", ">", .{.integer = 18})
+    .get();
+defer result.deinit();
+```
+
+#### Multiple WHERE Clauses
+
+```zig
+var result = try conn.table("users")
+    .select(&.{"id", "name"})
+    .where("age", ">=", .{.integer = 18})
+    .where("active", "=", .{.boolean = true})
+    .get();
+defer result.deinit();
+```
+
+#### ORDER BY
+
+```zig
+var result = try conn.table("users")
+    .orderBy("created_at", .desc)
+    .get();
+defer result.deinit();
+```
+
+#### LIMIT and OFFSET
+
+```zig
+var result = try conn.table("users")
+    .orderBy("id", .asc)
+    .limit(10)
+    .offset(20)
+    .get();
+defer result.deinit();
+```
+
+#### Get First Result
+
+```zig
+var first_row = try conn.table("users")
+    .where("email", "=", .{.text = "john@example.com"})
+    .first();
+
+if (first_row) |row| {
+    // Process first row
+    // Note: You still need to manage the result properly
+}
+```
+
+#### JOIN Queries
+
+##### INNER JOIN
+
+```zig
+var result = try conn.table("users")
+    .select(&.{"users.id", "users.name", "posts.title"})
+    .join("posts", "users.id", "posts.user_id")
+    .get();
+defer result.deinit();
+```
+
+##### LEFT JOIN
+
+```zig
+var result = try conn.table("users")
+    .select(&.{"users.id", "users.name", "posts.title"})
+    .leftJoin("posts", "users.id", "posts.user_id")
+    .get();
+defer result.deinit();
+```
+
+##### RIGHT JOIN
+
+```zig
+var result = try conn.table("users")
+    .select(&.{"users.id", "users.name", "posts.title"})
+    .rightJoin("posts", "users.id", "posts.user_id")
+    .get();
+defer result.deinit();
+```
+
+##### FULL OUTER JOIN
+
+```zig
+var result = try conn.table("users")
+    .select(&.{"users.id", "users.name", "posts.title"})
+    .fullJoin("posts", "users.id", "posts.user_id")
+    .get();
+defer result.deinit();
+```
+
+##### Multiple JOINs
+
+```zig
+var result = try conn.table("users")
+    .select(&.{"u.id", "u.name", "p.title", "c.content"})
+    .join("posts p", "users.id", "p.user_id")
+    .leftJoin("comments c", "p.id", "c.post_id")
+    .where("u.active", "=", .{.boolean = true})
+    .orderBy("u.name", .asc)
+    .limit(20)
+    .get();
+defer result.deinit();
+```
+
+##### JOIN with WHERE and ORDER BY
+
+```zig
+var result = try conn.table("users")
+    .select(&.{"users.name", "posts.title", "posts.created_at"})
+    .join("posts", "users.id", "posts.user_id")
+    .where("posts.published", "=", .{.boolean = true})
+    .where("users.age", ">=", .{.integer = 18})
+    .orderBy("posts.created_at", .desc)
+    .limit(10)
+    .get();
+defer result.deinit();
+```
+
+### 3.3 INSERT Queries
+
+#### Single Row Insert
+
+```zig
+try conn.table("users")
+    .addValue("name", .{.text = "John Doe"})
+    .addValue("email", .{.text = "john@example.com"})
+    .addValue("age", .{.integer = 30})
+    .execute();
+```
+
+#### Insert with HashMap
+
+```zig
+var values = std.StringHashMap(dig.types.SqlValue).init(allocator);
+defer values.deinit();
+
+try values.put("name", .{.text = "Jane Doe"});
+try values.put("email", .{.text = "jane@example.com"});
+try values.put("age", .{.integer = 25});
+
+try conn.table("users")
+    .setValues(values)
+    .execute();
+```
+
+### 3.4 UPDATE Queries
+
+#### Update Single Column
+
+```zig
+try conn.table("users")
+    .set("name", .{.text = "John Smith"})
+    .where("id", "=", .{.integer = 1})
+    .execute();
+```
+
+#### Update Multiple Columns
+
+```zig
+try conn.table("users")
+    .set("name", .{.text = "Jane Smith"})
+    .set("email", .{.text = "jane.smith@example.com"})
+    .set("age", .{.integer = 26})
+    .where("id", "=", .{.integer = 2})
+    .execute();
+```
+
+#### Update with HashMap
+
+```zig
+var values = std.StringHashMap(dig.types.SqlValue).init(allocator);
+defer values.deinit();
+
+try values.put("name", .{.text = "Updated Name"});
+try values.put("updated_at", .{.timestamp = std.time.timestamp()});
+
+try conn.table("users")
+    .setMultiple(values)
+    .where("id", "=", .{.integer = 3})
+    .execute();
+```
+
+### 3.5 DELETE Queries
+
+#### Delete with WHERE
+
+```zig
+try conn.table("users")
+    .delete()
+    .where("id", "=", .{.integer = 1})
+    .execute();
+```
+
+#### Delete Multiple Rows
+
+```zig
+try conn.table("users")
+    .delete()
+    .where("active", "=", .{.boolean = false})
+    .execute();
+```
+
+### 3.6 Complete Example
+
+```zig
+const std = @import("std");
+const dig = @import("dig");
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // Connect to database
+    var conn = try dig.db.connect(allocator, .{
+        .database_type = .postgresql,
+        .host = "localhost",
+        .port = 5432,
+        .database = "mydb",
+        .username = "user",
+        .password = "pass",
+    });
+    defer conn.disconnect();
+
+    // Insert a user
+    try conn.table("users")
+        .addValue("name", .{.text = "Alice"})
+        .addValue("email", .{.text = "alice@example.com"})
+        .addValue("age", .{.integer = 28})
+        .execute();
+
+    // Query users
+    var result = try conn.table("users")
+        .select(&.{"id", "name", "email"})
+        .where("age", ">=", .{.integer = 18})
+        .orderBy("name", .asc)
+        .get();
+    defer result.deinit();
+
+    // Process results
+    for (result.rows) |row| {
+        if (row.get("name")) |name| {
+            std.debug.print("Name: {s}\n", .{name.text});
+        }
+    }
+
+    // Update a user
+    try conn.table("users")
+        .set("age", .{.integer = 29})
+        .where("email", "=", .{.text = "alice@example.com"})
+        .execute();
+
+    // Delete a user
+    try conn.table("users")
+        .delete()
+        .where("email", "=", .{.text = "alice@example.com"})
+        .execute();
+}
+```
+
+---
+
+## 4. Traditional Query Builders
+
+These are the original query builders that generate SQL strings. They are still fully supported for cases where you need more control over SQL generation.
+
+### 4.1 SELECT Query Builder
 
 Build SELECT queries with filtering, ordering, and pagination.
 
-### 3.1 Basic SELECT
+#### 4.1.1 Basic SELECT
 
 ```zig
 const std = @import("std");
@@ -95,7 +455,7 @@ pub fn example(allocator: std.mem.Allocator) !void {
 }
 ```
 
-### 3.2 Selecting Specific Columns
+#### 4.1.2 Selecting Specific Columns
 
 ```zig
 var query = try dig.query.Select.init(allocator, "users");
@@ -108,7 +468,7 @@ defer allocator.free(sql);
 // Result: SELECT id, name, email FROM users
 ```
 
-### 3.3 WHERE Clause
+#### 4.1.3 WHERE Clause
 
 ```zig
 var query = try dig.query.Select.init(allocator, "users");
@@ -122,7 +482,7 @@ defer allocator.free(sql);
 // Result: SELECT id, name FROM users WHERE age > 18
 ```
 
-### 3.4 Multiple WHERE Clauses
+#### 4.1.4 Multiple WHERE Clauses
 
 ```zig
 var query = try dig.query.Select.init(allocator, "users");
@@ -137,7 +497,7 @@ defer allocator.free(sql);
 // Result: SELECT id, name FROM users WHERE age >= 18 AND active = true
 ```
 
-### 3.5 Supported Operators
+#### 4.1.5 Supported Operators
 
 WHERE clauses support various comparison operators:
 
@@ -158,7 +518,7 @@ try query.where("deleted_at", "IS NULL", .null);
 try query.where("status", "!=", .{ .text = "inactive" });
 ```
 
-### 3.6 ORDER BY
+#### 4.1.6 ORDER BY
 
 ```zig
 var query = try dig.query.Select.init(allocator, "users");
@@ -177,7 +537,7 @@ Direction options:
 - `.asc` - Ascending order
 - `.desc` - Descending order
 
-### 3.7 LIMIT and OFFSET
+#### 4.1.7 LIMIT and OFFSET
 
 ```zig
 var query = try dig.query.Select.init(allocator, "users");
@@ -195,7 +555,90 @@ defer allocator.free(sql);
 //         ORDER BY created_at DESC LIMIT 10 OFFSET 20
 ```
 
-### 3.8 Complete SELECT Example
+#### 4.1.8 JOIN Clauses
+
+##### INNER JOIN
+
+```zig
+var query = try dig.query.Select.init(allocator, "users");
+defer query.deinit();
+
+const sql = try (try query
+    .select(&[_][]const u8{"users.id", "users.name", "posts.title"})
+    .join("posts", "users.id", "posts.user_id"))
+    .toSql(.postgresql);
+defer allocator.free(sql);
+// Result: SELECT users.id, users.name, posts.title FROM users
+//         INNER JOIN posts ON users.id = posts.user_id
+```
+
+##### LEFT JOIN
+
+```zig
+var query = try dig.query.Select.init(allocator, "users");
+defer query.deinit();
+
+const sql = try (try query
+    .select(&[_][]const u8{"users.id", "users.name", "posts.title"})
+    .leftJoin("posts", "users.id", "posts.user_id"))
+    .toSql(.postgresql);
+defer allocator.free(sql);
+// Result: SELECT users.id, users.name, posts.title FROM users
+//         LEFT JOIN posts ON users.id = posts.user_id
+```
+
+##### RIGHT JOIN
+
+```zig
+var query = try dig.query.Select.init(allocator, "users");
+defer query.deinit();
+
+const sql = try (try query
+    .select(&[_][]const u8{"users.id", "users.name", "posts.title"})
+    .rightJoin("posts", "users.id", "posts.user_id"))
+    .toSql(.postgresql);
+defer allocator.free(sql);
+// Result: SELECT users.id, users.name, posts.title FROM users
+//         RIGHT JOIN posts ON users.id = posts.user_id
+```
+
+##### FULL OUTER JOIN
+
+```zig
+var query = try dig.query.Select.init(allocator, "users");
+defer query.deinit();
+
+const sql = try (try query
+    .select(&[_][]const u8{"users.id", "users.name", "posts.title"})
+    .fullJoin("posts", "users.id", "posts.user_id"))
+    .toSql(.postgresql);
+defer allocator.free(sql);
+// Result: SELECT users.id, users.name, posts.title FROM users
+//         FULL OUTER JOIN posts ON users.id = posts.user_id
+```
+
+##### Multiple JOINs with WHERE
+
+```zig
+var query = try dig.query.Select.init(allocator, "users");
+defer query.deinit();
+
+const sql = try (try (try (try query
+    .select(&[_][]const u8{"u.id", "u.name", "p.title", "c.content"})
+    .join("posts p", "users.id", "p.user_id"))
+    .leftJoin("comments c", "p.id", "c.post_id"))
+    .where("u.active", "=", .{ .boolean = true }))
+    .orderBy("u.name", .asc)
+    .toSql(.postgresql);
+defer allocator.free(sql);
+// Result: SELECT u.id, u.name, p.title, c.content FROM users
+//         INNER JOIN posts p ON users.id = p.user_id
+//         LEFT JOIN comments c ON p.id = c.post_id
+//         WHERE u.active = true
+//         ORDER BY u.name ASC
+```
+
+#### 4.1.9 Complete SELECT Example
 
 ```zig
 const std = @import("std");
@@ -214,18 +657,19 @@ pub fn main() !void {
         .username = "user",
         .password = "pass",
     };
-    var db = try dig.db.connect(allocator, config);
-    defer db.disconnect();
+    var conn = try dig.db.connect(allocator, config);
+    defer conn.disconnect();
 
-    // Build query
+    // Build query with JOIN
     var query = try dig.query.Select.init(allocator, "users");
     defer query.deinit();
 
-    const sql = try (try (try query
-        .select(&[_][]const u8{"id", "name", "email", "age"})
-        .where("age", ">=", .{ .integer = 18 }))
-        .where("active", "=", .{ .boolean = true }))
-        .orderBy("name", .asc)
+    const sql = try (try (try (try query
+        .select(&[_][]const u8{"users.id", "users.name", "users.email", "posts.title"})
+        .join("posts", "users.id", "posts.user_id"))
+        .where("users.age", ">=", .{ .integer = 18 }))
+        .where("posts.published", "=", .{ .boolean = true }))
+        .orderBy("users.name", .asc)
         .limit(50)
         .toSql(.postgresql);
     defer allocator.free(sql);
@@ -233,7 +677,7 @@ pub fn main() !void {
     std.debug.print("SQL: {s}\n\n", .{sql});
 
     // Execute query
-    var result = try db.query(sql);
+    var result = try conn.query(sql, allocator);
     defer result.deinit();
 
     // Process results
@@ -241,19 +685,19 @@ pub fn main() !void {
         const id = row.get("id").?.integer;
         const name = row.get("name").?.text;
         const email = row.get("email").?.text;
-        const age = row.get("age").?.integer;
-        std.debug.print("User {d}: {s} ({s}), age {d}\n", .{ id, name, email, age });
+        const title = row.get("title").?.text;
+        std.debug.print("User {d}: {s} ({s}) - Post: {s}\n", .{ id, name, email, title });
     }
 }
 ```
 
 ---
 
-## 4. INSERT Query Builder
+### 4.2 INSERT Query Builder
 
 Build INSERT queries to add new records.
 
-### 4.1 Basic INSERT
+#### 4.2.1 Basic INSERT
 
 ```zig
 var query = try dig.query.Insert.init(allocator, "users");
@@ -269,7 +713,7 @@ defer allocator.free(sql);
 //         VALUES ('John Doe', 'john@example.com', 30)
 ```
 
-### 4.2 Using Hash Map for Values
+#### 4.2.2 Using Hash Map for Values
 
 For more convenience, use `setValues` with a hash map:
 
@@ -291,7 +735,7 @@ defer allocator.free(sql);
 //         VALUES ('Jane Doe', 'jane@example.com', 25, true)
 ```
 
-### 4.3 Complete INSERT Example
+#### 4.2.3 Complete INSERT Example
 
 ```zig
 const std = @import("std");
@@ -310,8 +754,8 @@ pub fn main() !void {
         .username = "user",
         .password = "pass",
     };
-    var db = try dig.db.connect(allocator, config);
-    defer db.disconnect();
+    var conn = try dig.db.connect(allocator, config);
+    defer conn.disconnect();
 
     // Build INSERT query
     var query = try dig.query.Insert.init(allocator, "users");
@@ -331,18 +775,18 @@ pub fn main() !void {
     std.debug.print("SQL: {s}\n", .{sql});
 
     // Execute INSERT
-    try db.execute(sql);
+    try conn.execute(sql);
     std.debug.print("User inserted successfully!\n", .{});
 }
 ```
 
 ---
 
-## 5. UPDATE Query Builder
+### 4.3 UPDATE Query Builder
 
 Build UPDATE queries to modify existing records.
 
-### 5.1 Basic UPDATE
+#### 4.3.1 Basic UPDATE
 
 ```zig
 var query = try dig.query.Update.init(allocator, "users");
@@ -356,7 +800,7 @@ defer allocator.free(sql);
 // Result: UPDATE users SET age = 31 WHERE id = 1
 ```
 
-### 5.2 Multiple SET Clauses
+#### 4.3.2 Multiple SET Clauses
 
 ```zig
 var query = try dig.query.Update.init(allocator, "users");
@@ -373,7 +817,7 @@ defer allocator.free(sql);
 //         WHERE id = 1
 ```
 
-### 5.3 Using Hash Map for Updates
+#### 4.3.3 Using Hash Map for Updates
 
 ```zig
 var query = try dig.query.Update.init(allocator, "users");
@@ -395,7 +839,7 @@ defer allocator.free(sql);
 //         WHERE id = 2
 ```
 
-### 5.4 Multiple WHERE Clauses
+#### 4.3.4 Multiple WHERE Clauses
 
 ```zig
 var query = try dig.query.Update.init(allocator, "users");
@@ -411,7 +855,7 @@ defer allocator.free(sql);
 //         WHERE last_login < 1609459200 AND email_verified = false
 ```
 
-### 5.5 Complete UPDATE Example
+#### 4.3.5 Complete UPDATE Example
 
 ```zig
 const std = @import("std");
@@ -430,8 +874,8 @@ pub fn main() !void {
         .username = "user",
         .password = "pass",
     };
-    var db = try dig.db.connect(allocator, config);
-    defer db.disconnect();
+    var conn = try dig.db.connect(allocator, config);
+    defer conn.disconnect();
 
     // Build UPDATE query
     var query = try dig.query.Update.init(allocator, "users");
@@ -452,18 +896,18 @@ pub fn main() !void {
     std.debug.print("SQL: {s}\n", .{sql});
 
     // Execute UPDATE
-    try db.execute(sql);
+    try conn.execute(sql);
     std.debug.print("User updated successfully!\n", .{});
 }
 ```
 
 ---
 
-## 6. DELETE Query Builder
+### 4.4 DELETE Query Builder
 
 Build DELETE queries to remove records.
 
-### 6.1 Basic DELETE
+#### 4.4.1 Basic DELETE
 
 ```zig
 var query = try dig.query.Delete.init(allocator, "users");
@@ -476,7 +920,7 @@ defer allocator.free(sql);
 // Result: DELETE FROM users WHERE id = 1
 ```
 
-### 6.2 Multiple WHERE Clauses
+#### 4.4.2 Multiple WHERE Clauses
 
 ```zig
 var query = try dig.query.Delete.init(allocator, "users");
@@ -490,7 +934,7 @@ defer allocator.free(sql);
 // Result: DELETE FROM users WHERE active = false AND last_login < 1609459200
 ```
 
-### 6.3 Complete DELETE Example
+#### 4.4.3 Complete DELETE Example
 
 ```zig
 const std = @import("std");
@@ -509,8 +953,8 @@ pub fn main() !void {
         .username = "user",
         .password = "pass",
     };
-    var db = try dig.db.connect(allocator, config);
-    defer db.disconnect();
+    var conn = try dig.db.connect(allocator, config);
+    defer conn.disconnect();
 
     // Build DELETE query
     var query = try dig.query.Delete.init(allocator, "users");
@@ -524,7 +968,7 @@ pub fn main() !void {
     std.debug.print("SQL: {s}\n", .{sql});
 
     // Execute DELETE
-    try db.execute(sql);
+    try conn.execute(sql);
     std.debug.print("User deleted successfully!\n", .{});
 }
 ```
@@ -550,7 +994,7 @@ pub const QueryResult = struct {
 Access row values by column name or index:
 
 ```zig
-var result = try db.query("SELECT id, name, email FROM users");
+var result = try conn.query("SELECT id, name, email FROM users");
 defer result.deinit();
 
 for (result.rows) |row| {
@@ -591,7 +1035,7 @@ for (result.rows) |row| {
 ### 7.4 Getting Column Information
 
 ```zig
-var result = try db.query("SELECT * FROM users");
+var result = try conn.query("SELECT * FROM users");
 defer result.deinit();
 
 // Print column names
@@ -631,12 +1075,12 @@ pub fn main() !void {
         .username = "user",
         .password = "pass",
     };
-    var db = try dig.db.connect(allocator, config);
-    defer db.disconnect();
+    var conn = try dig.db.connect(allocator, config);
+    defer conn.disconnect();
 
     // Begin transaction
-    try db.beginTransaction();
-    errdefer db.rollback() catch {};
+    try conn.beginTransaction();
+    errdefer conn.rollback() catch {};
 
     // Execute multiple queries
     var insert1 = try dig.query.Insert.init(allocator, "users");
@@ -646,7 +1090,7 @@ pub fn main() !void {
         .addValue("email", .{ .text = "user1@example.com" }))
         .toSql(.postgresql);
     defer allocator.free(sql1);
-    try db.execute(sql1);
+    try conn.execute(sql1);
 
     var insert2 = try dig.query.Insert.init(allocator, "users");
     defer insert2.deinit();
@@ -655,10 +1099,10 @@ pub fn main() !void {
         .addValue("email", .{ .text = "user2@example.com" }))
         .toSql(.postgresql);
     defer allocator.free(sql2);
-    try db.execute(sql2);
+    try conn.execute(sql2);
 
     // Commit transaction
-    try db.commit();
+    try conn.commit();
     std.debug.print("Transaction committed successfully!\n", .{});
 }
 ```
@@ -722,7 +1166,6 @@ if (value != null and value.? != .null) {
 
 Current limitations:
 
-- **JOIN queries**: Not yet supported (use raw SQL)
 - **Subqueries**: Not yet supported (use raw SQL)
 - **Aggregate functions**: Not yet supported (COUNT, SUM, etc.)
 - **GROUP BY / HAVING**: Not yet supported

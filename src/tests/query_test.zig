@@ -410,3 +410,129 @@ test "SelectQuery: null value" {
 
     try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "NULL"));
 }
+
+test "SelectQuery: INNER JOIN" {
+    const allocator = testing.allocator;
+    var query = try dig.query.SelectQuery.init(allocator, "users");
+    defer query.deinit();
+
+    const sql = try (try query.join("posts", "users.id", "posts.user_id")).toSql(.postgresql);
+    defer allocator.free(sql);
+
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "INNER JOIN"));
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "posts"));
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "users.id"));
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "posts.user_id"));
+}
+
+test "SelectQuery: LEFT JOIN" {
+    const allocator = testing.allocator;
+    var query = try dig.query.SelectQuery.init(allocator, "users");
+    defer query.deinit();
+
+    const sql = try (try query.leftJoin("posts", "users.id", "posts.user_id")).toSql(.postgresql);
+    defer allocator.free(sql);
+
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "LEFT JOIN"));
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "posts"));
+}
+
+test "SelectQuery: RIGHT JOIN" {
+    const allocator = testing.allocator;
+    var query = try dig.query.SelectQuery.init(allocator, "users");
+    defer query.deinit();
+
+    const sql = try (try query.rightJoin("posts", "users.id", "posts.user_id")).toSql(.postgresql);
+    defer allocator.free(sql);
+
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "RIGHT JOIN"));
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "posts"));
+}
+
+test "SelectQuery: FULL OUTER JOIN" {
+    const allocator = testing.allocator;
+    var query = try dig.query.SelectQuery.init(allocator, "users");
+    defer query.deinit();
+
+    const sql = try (try query.fullJoin("posts", "users.id", "posts.user_id")).toSql(.postgresql);
+    defer allocator.free(sql);
+
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "FULL OUTER JOIN"));
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "posts"));
+}
+
+test "SelectQuery: multiple JOINs" {
+    const allocator = testing.allocator;
+    var query = try dig.query.SelectQuery.init(allocator, "users");
+    defer query.deinit();
+
+    const sql = try (try (try query
+        .join("posts", "users.id", "posts.user_id"))
+        .leftJoin("comments", "posts.id", "comments.post_id"))
+        .toSql(.postgresql);
+    defer allocator.free(sql);
+
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "INNER JOIN"));
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "LEFT JOIN"));
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "posts"));
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "comments"));
+}
+
+test "SelectQuery: JOIN with WHERE clause" {
+    const allocator = testing.allocator;
+    var query = try dig.query.SelectQuery.init(allocator, "users");
+    defer query.deinit();
+
+    const sql = try (try (try query
+        .select(&[_][]const u8{ "users.id", "users.name", "posts.title" })
+        .join("posts", "users.id", "posts.user_id"))
+        .where("users.age", ">=", .{ .integer = 18 }))
+        .toSql(.postgresql);
+    defer allocator.free(sql);
+
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "SELECT"));
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "INNER JOIN"));
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "WHERE"));
+}
+
+test "SelectQuery: JOIN with ORDER BY and LIMIT" {
+    const allocator = testing.allocator;
+    var query = try dig.query.SelectQuery.init(allocator, "users");
+    defer query.deinit();
+
+    const sql = try (try query
+        .select(&[_][]const u8{ "users.name", "posts.title" })
+        .join("posts", "users.id", "posts.user_id"))
+        .orderBy("users.name", .asc)
+        .limit(10)
+        .toSql(.postgresql);
+    defer allocator.free(sql);
+
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "INNER JOIN"));
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "ORDER BY"));
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "LIMIT"));
+}
+
+test "SelectQuery: complex query with JOINs" {
+    const allocator = testing.allocator;
+    var query = try dig.query.SelectQuery.init(allocator, "users");
+    defer query.deinit();
+
+    const sql = try (try (try (try query
+        .select(&[_][]const u8{ "u.id", "u.name", "p.title", "c.content" })
+        .join("posts p", "users.id", "p.user_id"))
+        .leftJoin("comments c", "p.id", "c.post_id"))
+        .where("u.active", "=", .{ .boolean = true }))
+        .orderBy("u.name", .asc)
+        .limit(20)
+        .toSql(.postgresql);
+    defer allocator.free(sql);
+
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "SELECT"));
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "FROM users"));
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "INNER JOIN"));
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "LEFT JOIN"));
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "WHERE"));
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "ORDER BY"));
+    try testing.expect(std.mem.containsAtLeast(u8, sql, 1, "LIMIT"));
+}

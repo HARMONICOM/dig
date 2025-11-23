@@ -111,7 +111,7 @@
 
           <h3>1. Add Dig ORM as a dependency</h3>
           <p>Fetch Horizon using Zig's package manager:</p>
-          <pre><code class="code-block">zig fetch --save-exact=dig https://github.com/HARMONICOM/dig/archive/refs/tags/0.0.5.tar.gz</code></pre>
+          <pre><code class="code-block">zig fetch --save-exact=dig https://github.com/HARMONICOM/dig/archive/refs/tags/0.0.6.tar.gz</code></pre>
 
           <h3>2. Configure <code>build.zig</code></h3>
           <p>Import the Dig module and enable the database drivers you need:</p>
@@ -143,7 +143,7 @@ brew install postgresql
 brew install mysql-client</code></pre>
 
           <h3 id="minimal-example">4. Connect and query</h3>
-          <p>Here is a minimal example using Dig ORM:</p>
+          <p>Here is a minimal example using Dig ORM with the recommended chainable query builder:</p>
           <pre><code class="code-block">const std = @import("std");
 const dig = @import("dig");
 
@@ -162,20 +162,16 @@ pub fn main() !void {
         .password = "pass",
     };
 
-    var db = try dig.db.connect(allocator, config);
-    defer db.disconnect();
+    var conn = try dig.db.connect(allocator, config);
+    defer conn.disconnect();
 
-    // Build and execute query
-    var query = try dig.query.Select.init(allocator, "users");
-    defer query.deinit();
-
-    const sql = try (try query
-        .select(&[_][]const u8{ "id", "name", "email" })
-        .where("age", "&gt;", .{ .integer = 18 }))
-        .toSql(.postgresql);
-    defer allocator.free(sql);
-
-    var result = try db.query(sql);
+    // Chainable query builder - build and execute in one chain
+    var result = try conn.table("users")
+        .select(&.{"id", "name", "email"})
+        .where("age", "&gt;", .{.integer = 18})
+        .orderBy("name", .asc)
+        .limit(10)
+        .get();
     defer result.deinit();
 
     for (result.rows) |row| {
@@ -190,10 +186,45 @@ pub fn main() !void {
           <h2>Query Builders</h2>
           <p>
             Dig ORM provides type-safe query builders for SELECT, INSERT, UPDATE, and DELETE operations.
-            All query builders use a fluent API for method chaining.
+            You can use chainable query builders (recommended) or traditional query builders.
           </p>
 
-          <h3>SELECT Queries</h3>
+          <h3>Chainable Query Builder (Recommended)</h3>
+          <p>Build and execute queries directly from the database connection:</p>
+
+          <h4>SELECT</h4>
+          <pre><code class="code-block">// Build and execute in one chain
+var result = try conn.table("users")
+    .select(&.{"id", "name", "email"})
+    .where("age", "&gt;", .{.integer = 18})
+    .orderBy("name", .asc)
+    .limit(10)
+    .get();
+defer result.deinit();</code></pre>
+
+          <h4>INSERT</h4>
+          <pre><code class="code-block">try conn.table("users")
+    .addValue("name", .{.text = "John Doe"})
+    .addValue("email", .{.text = "john@example.com"})
+    .addValue("age", .{.integer = 30})
+    .execute();</code></pre>
+
+          <h4>UPDATE</h4>
+          <pre><code class="code-block">try conn.table("users")
+    .set("age", .{.integer = 31})
+    .where("id", "=", .{.integer = 1})
+    .execute();</code></pre>
+
+          <h4>DELETE</h4>
+          <pre><code class="code-block">try conn.table("users")
+    .delete()
+    .where("id", "=", .{.integer = 1})
+    .execute();</code></pre>
+
+          <h3>Traditional Query Builders</h3>
+          <p>Generate SQL separately and execute (still supported):</p>
+
+          <h4>SELECT Queries</h4>
           <pre><code class="code-block">var query = try dig.query.Select.init(allocator, "users");
 defer query.deinit();
 
@@ -203,10 +234,12 @@ const sql = try (try query
     .orderBy("name", .asc)
     .limit(10)
     .toSql(.postgresql);
-defer allocator.free(sql);</code></pre>
+defer allocator.free(sql);
 
-          <h3>INSERT Queries</h3>
-          <p>Method chaining style:</p>
+var result = try conn.query(sql);
+defer result.deinit();</code></pre>
+
+          <h4>INSERT Queries</h4>
           <pre><code class="code-block">var query = try dig.query.Insert.init(allocator, "users");
 defer query.deinit();
 
@@ -215,23 +248,11 @@ const sql = try (try (try query
     .addValue("email", .{ .text = "john@example.com" }))
     .addValue("age", .{ .integer = 30 }))
     .toSql(.postgresql);
-defer allocator.free(sql);</code></pre>
+defer allocator.free(sql);
 
-          <p>Hash map style:</p>
-          <pre><code class="code-block">var query = try dig.query.Insert.init(allocator, "users");
-defer query.deinit();
+try conn.execute(sql);</code></pre>
 
-var values = std.StringHashMap(dig.types.SqlValue).init(allocator);
-defer values.deinit();
-
-try values.put("name", .{ .text = "John Doe" });
-try values.put("email", .{ .text = "john@example.com" });
-try values.put("age", .{ .integer = 30 });
-
-const sql = try (try query.setValues(values)).toSql(.postgresql);
-defer allocator.free(sql);</code></pre>
-
-          <h3>UPDATE Queries</h3>
+          <h4>UPDATE Queries</h4>
           <pre><code class="code-block">var query = try dig.query.Update.init(allocator, "users");
 defer query.deinit();
 
@@ -239,16 +260,22 @@ const sql = try (try (try query
     .set("age", .{ .integer = 31 }))
     .where("id", "=", .{ .integer = 1 }))
     .toSql(.postgresql);
-defer allocator.free(sql);</code></pre>
+defer allocator.free(sql);
 
-          <h3>DELETE Queries</h3>
+try conn.execute(sql);</code></pre>
+
+          <h4>DELETE Queries</h4>
           <pre><code class="code-block">var query = try dig.query.Delete.init(allocator, "users");
 defer query.deinit();
 
 const sql = try (try query
     .where("id", "=", .{ .integer = 1 }))
     .toSql(.postgresql);
-defer allocator.free(sql);</code></pre>
+defer allocator.free(sql);
+
+try conn.execute(sql);</code></pre>
+
+          <p>For more details, see the <a href="https://github.com/HARMONICOM/dig/blob/main/documents/query-builders.md">Query Builders Documentation</a>.</p>
         </section>
 
         <section id="schema" class="doc-section">

@@ -59,14 +59,47 @@ pub fn build(b: *std.Build) void {
     // Install migrate executable
     b.installArtifact(migrate_exe);
 
+    // Seeder CLI tool executable
+    const seeder_module = b.createModule(.{
+        .root_source_file = b.path("src/seeder.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    seeder_module.addImport("dig", dig_module);
+
+    const seeder_exe = b.addExecutable(.{
+        .name = "seeder",
+        .root_module = seeder_module,
+    });
+    seeder_exe.linkLibC();
+
+    // Link enabled database libraries
+    if (enable_postgresql) {
+        seeder_exe.linkSystemLibrary("pq");
+    }
+    if (enable_mysql) {
+        seeder_exe.linkSystemLibrary("mysqlclient");
+    }
+
+    // Install seeder executable
+    b.installArtifact(seeder_exe);
+
     // Individual test files
     const test_files = [_][]const u8{
         "src/tests/query_test.zig",
+        "src/tests/queryBuilder_test.zig",
         "src/tests/schema_test.zig",
         "src/tests/types_test.zig",
         "src/tests/integration_test.zig",
+        "src/tests/integration_full_test.zig",
         "src/tests/errors_test.zig",
+        "src/tests/error_handling_test.zig",
         "src/tests/connection_test.zig",
+        "src/tests/db_test.zig",
+        "src/tests/migration_test.zig",
+        "src/tests/seeder_test.zig",
+        "src/tests/mock_driver_test.zig",
+        "src/tests/driver_vtable_test.zig",
     };
 
     // Step to run all tests
