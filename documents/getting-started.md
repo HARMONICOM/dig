@@ -348,7 +348,8 @@ src/
   models/            # Data model definitions
     user.zig
     post.zig
-  migrations/        # SQL migration files
+database/
+  migrations/        # SQL migration files (default directory)
     20251122_create_users.sql
     20251123_create_posts.sql
 build.zig            # Build configuration

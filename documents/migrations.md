@@ -66,7 +66,7 @@ Examples:
 
 ### 2.3 Migration File Example
 
-File: `migrations/20251122_create_users_table.sql`
+File: `database/migrations/20251122_create_users_table.sql`
 
 ```sql
 -- Migration: Create users table with authentication fields
@@ -94,7 +94,7 @@ DROP TABLE IF EXISTS users;
 
 ## 3. Migration Directory Structure
 
-Create a `database/migrations/` directory in your project root (or use `migrations/` for simple projects):
+Create a `database/migrations/` directory in your project root (this is the default directory):
 
 **Recommended Structure** (with migrations and seeders):
 
@@ -114,7 +114,9 @@ my-project/
 └── build.zig.zon
 ```
 
-**Simple Structure** (migrations only):
+**Alternative Structure** (using custom directory with `--dir` option):
+
+If you prefer a simpler structure, you can use `migrations/` at the project root and specify it with the `--dir` option:
 
 ```text
 my-project/
@@ -127,6 +129,8 @@ my-project/
 ├── build.zig
 └── build.zig.zon
 ```
+
+Then run migrations with: `./zig-out/bin/migrate up --dir migrations`
 
 **Best Practice**: Keep migration files in version control (git) to track schema changes.
 
@@ -194,6 +198,8 @@ The migration tool uses environment variables for configuration:
 | `DB_USERNAME`   | Database username                        | Yes      | -           |
 | `DB_PASSWORD`   | Database password                        | Yes      | -           |
 
+**Note**: The `mock` database type is also supported for testing purposes, but it's not typically used with the migration tool.
+
 ### 4.3 Migration Commands
 
 #### Run All Pending Migrations
@@ -206,16 +212,16 @@ DB_PASSWORD=pass \
   ./zig-out/bin/migrate up
 ```
 
-Default migration directory: `./migrations/`
+Default migration directory: `./database/migrations/`
 
-Custom migration directory (e.g., for organized structure):
+Custom migration directory (if you want to use a different path):
 
 ```bash
 DB_TYPE=postgresql \
 DB_DATABASE=mydb \
 DB_USERNAME=user \
 DB_PASSWORD=pass \
-  ./zig-out/bin/migrate up --dir database/migrations
+  ./zig-out/bin/migrate up --dir custom/path/migrations
 ```
 
 #### Roll Back Last Migration Batch
@@ -487,7 +493,7 @@ To completely reset and re-run all migrations:
 
 ### Example 1: Creating a Users Table
 
-File: `migrations/20251122_create_users_table.sql`
+File: `database/migrations/20251122_create_users_table.sql`
 
 ```sql
 -- Migration: Create users table
@@ -510,7 +516,7 @@ DROP TABLE IF EXISTS users;
 
 ### Example 2: Adding a Column
 
-File: `migrations/20251123_add_user_bio.sql`
+File: `database/migrations/20251123_add_user_bio.sql`
 
 ```sql
 -- Migration: Add bio column to users table
@@ -524,7 +530,7 @@ ALTER TABLE users DROP COLUMN bio;
 
 ### Example 3: Creating a Related Table
 
-File: `migrations/20251124_create_posts_table.sql`
+File: `database/migrations/20251124_create_posts_table.sql`
 
 ```sql
 -- Migration: Create posts table with foreign key to users
@@ -548,7 +554,7 @@ DROP TABLE IF EXISTS posts;
 
 ### Example 4: Renaming a Column
 
-File: `migrations/20251125_rename_bio_to_description.sql`
+File: `database/migrations/20251125_rename_bio_to_description.sql`
 
 ```sql
 -- Migration: Rename bio column to description

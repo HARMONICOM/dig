@@ -243,8 +243,54 @@ fn splitSqlStatements(allocator: std.mem.Allocator, sql: []const u8) !std.ArrayL
     defer current.deinit(allocator);
 
     var i: usize = 0;
-    while (i < sql.len) : (i += 1) {
+    var in_comment_line: bool = false;
+
+    while (i < sql.len) {
         const c = sql[i];
+
+        // Handle newline - end of comment line
+        if (c == '\n' or c == '\r') {
+            if (in_comment_line) {
+                in_comment_line = false;
+                // Skip newline after comment
+                i += 1;
+                continue;
+            }
+            // Add newline to current statement
+            try current.append(allocator, c);
+            i += 1;
+            continue;
+        }
+
+        // Check for comment start (-- at beginning of line)
+        if (c == '-' and i + 1 < sql.len and sql[i + 1] == '-') {
+            // Check if this is at the start of a line
+            var is_line_start = false;
+            if (i == 0) {
+                is_line_start = true;
+            } else {
+                // Look backwards for line start
+                var j = i - 1;
+                while (j > 0 and (sql[j] == ' ' or sql[j] == '\t')) : (j -= 1) {}
+                if (j == 0 or sql[j] == '\n' or sql[j] == '\r') {
+                    is_line_start = true;
+                }
+            }
+
+            if (is_line_start) {
+                in_comment_line = true;
+                // Skip the rest of the comment line until newline
+                i += 2; // Skip '--'
+                while (i < sql.len and sql[i] != '\n' and sql[i] != '\r') : (i += 1) {}
+                // Don't increment i here, let the newline handler process it
+                continue;
+            }
+        }
+
+        if (in_comment_line) {
+            i += 1;
+            continue;
+        }
 
         if (c == ';') {
             const trimmed = std.mem.trim(u8, current.items, " \t\n\r");
@@ -255,6 +301,8 @@ fn splitSqlStatements(allocator: std.mem.Allocator, sql: []const u8) !std.ArrayL
         } else {
             try current.append(allocator, c);
         }
+
+        i += 1;
     }
 
     // Handle last statement if no semicolon at end

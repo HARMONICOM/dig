@@ -51,7 +51,7 @@ fn printHelp() void {
         \\  migrate help                            Show this help
         \\
         \\Options:
-        \\  --dir <path>  Path to migrations directory (default: migrations)
+        \\  --dir <path>  Path to migrations directory (default: database/migrations)
         \\
         \\Environment variables:
         \\  DB_TYPE      Database type (postgresql or mysql, required)
@@ -99,7 +99,7 @@ fn parseConfig(allocator: std.mem.Allocator) !Config {
     }
 
     // Parse options
-    var migrations_dir: []const u8 = "migrations";
+    var migrations_dir: []const u8 = "database/migrations";
     while (args.next()) |arg| {
         if (std.mem.eql(u8, arg, "--dir")) {
             migrations_dir = args.next() orelse {
