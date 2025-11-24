@@ -27,6 +27,7 @@ pub const Db = struct {
 - `disconnect()` - Close connection
 - `execute(sql)` - Execute SQL without returning results
 - `query(sql)` - Execute SQL and return results
+- `table(table_name)` - Start a chainable query builder for a table
 - `beginTransaction()` - Start transaction
 - `commit()` - Commit transaction
 - `rollback()` - Roll back transaction
@@ -102,6 +103,7 @@ Enumeration of supported database types.
 pub const DatabaseType = enum {
     postgresql,
     mysql,
+    mock, // Mock driver for testing
 };
 ```
 
@@ -119,9 +121,9 @@ Table definition structure.
 
 ```zig
 pub const Table = struct {
-    allocator: std.mem.Allocator,
     name: []const u8,
-    columns: std.ArrayList(Column),
+    columns: []const Column,
+    allocator: std.mem.Allocator,
 };
 ```
 
@@ -191,20 +193,24 @@ SELECT query builder.
 
 ```zig
 pub const Select = struct {
-    allocator: std.mem.Allocator,
     table: []const u8,
-    columns: std.ArrayList([]const u8),
+    columns: []const []const u8,
+    joins: std.ArrayList(JoinClause),
     where_clauses: std.ArrayList(WhereClause),
-    order_by_column: ?[]const u8,
-    order_direction: ?Direction,
+    order_by: ?OrderBy,
     limit_value: ?usize,
     offset_value: ?usize,
+    allocator: std.mem.Allocator,
 };
 ```
 
 **Key Methods**:
 - `init(allocator, table)` - Create SELECT query
 - `select(columns)` - Specify columns to select
+- `join(table, left_column, right_column)` - Add INNER JOIN
+- `leftJoin(table, left_column, right_column)` - Add LEFT JOIN
+- `rightJoin(table, left_column, right_column)` - Add RIGHT JOIN
+- `fullJoin(table, left_column, right_column)` - Add FULL OUTER JOIN
 - `where(column, operator, value)` - Add WHERE clause
 - `orderBy(column, direction)` - Add ORDER BY
 - `limit(count)` - Add LIMIT
@@ -226,16 +232,16 @@ INSERT query builder.
 
 ```zig
 pub const Insert = struct {
-    allocator: std.mem.Allocator,
     table: []const u8,
-    values: std.StringHashMap(SqlValue),
+    values: std.ArrayList(ValuePair),
+    allocator: std.mem.Allocator,
 };
 ```
 
 **Key Methods**:
 - `init(allocator, table)` - Create INSERT query
 - `addValue(column, value)` - Add value to insert
-- `setValues(hash_map)` - Set values from hash map
+- `setValues(hash_map)` - Set multiple values from hash map
 - `toSql(db_type)` - Generate SQL string
 - `deinit()` - Free resources
 
@@ -253,17 +259,17 @@ UPDATE query builder.
 
 ```zig
 pub const Update = struct {
-    allocator: std.mem.Allocator,
     table: []const u8,
-    set_values: std.StringHashMap(SqlValue),
+    set_clauses: std.ArrayList(SetClause),
     where_clauses: std.ArrayList(WhereClause),
+    allocator: std.mem.Allocator,
 };
 ```
 
 **Key Methods**:
 - `init(allocator, table)` - Create UPDATE query
 - `set(column, value)` - Set column value
-- `setMultiple(hash_map)` - Set multiple values from hash map
+- `setMultiple(hash_map)` - Set multiple columns from hash map
 - `where(column, operator, value)` - Add WHERE clause
 - `toSql(db_type)` - Generate SQL string
 - `deinit()` - Free resources
@@ -359,7 +365,7 @@ Migration manager for schema versioning.
 
 ```zig
 pub const Manager = struct {
-    db: *Database,
+    db: *Db,
     allocator: std.mem.Allocator,
     migrations_table: []const u8,
 };
@@ -491,7 +497,7 @@ b.installArtifact(migrate_artifact);
 - `DB_PASSWORD` - Password
 
 **Options**:
-- `--dir=<path>` - Custom migration directory (default: migrations/)
+- `--dir=<path>` - Custom migration directory (default: database/migrations/)
 
 **See**: [`migrations.md`](./migrations.md)
 

@@ -71,7 +71,7 @@ pub const ConnectionConfig = struct {
         return switch (self.database_type) {
             .postgresql => try std.fmt.allocPrint(
                 allocator,
-                "postgresql://{s}:{s}@{s}:{d}/{s}",
+                "postgresql://{s}:{s}@{s}:{d}/{s}?connect_timeout=5",
                 .{ self.username, self.password, self.host, self.port, self.database },
             ),
             .mysql => try std.fmt.allocPrint(

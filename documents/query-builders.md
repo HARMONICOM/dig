@@ -677,7 +677,7 @@ pub fn main() !void {
     std.debug.print("SQL: {s}\n\n", .{sql});
 
     // Execute query
-    var result = try conn.query(sql, allocator);
+    var result = try conn.query(sql);
     defer result.deinit();
 
     // Process results
