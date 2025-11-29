@@ -5,8 +5,8 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     // Build options for database drivers
-    const enable_postgresql = b.option(bool, "postgresql", "Enable PostgreSQL driver (default: false)") orelse false;
-    const enable_mysql = b.option(bool, "mysql", "Enable MySQL driver (default: false)") orelse false;
+    const enable_postgresql = b.option(bool, "postgresql", "Enable PostgreSQL driver (default: true)") orelse true;
+    const enable_mysql = b.option(bool, "mysql", "Enable MySQL driver (default: true)") orelse true;
 
     // Create build options
     const build_options = b.addOptions();
