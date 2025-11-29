@@ -79,7 +79,8 @@ Core modules:
 
 - `db.zig`: Database interface and connection management
 - `connection.zig`: Connection abstraction with VTable pattern
-- `query.zig`: Query builders (SELECT, INSERT, UPDATE, DELETE)
+- `query.zig`: Query builders (Select, Insert, Update, Delete)
+- `queryBuilder.zig`: Chainable query builder for direct execution
 - `schema.zig`: Table and column definition system
 - `migration.zig`: SQL-based migration system
 - `types.zig`: Core type definitions (SqlValue, DatabaseType, etc.)
@@ -168,19 +169,12 @@ pub fn main() !void {
     var db = try dig.db.connect(allocator, config);
     defer db.disconnect();
 
-    // Build and execute a query
-    var query = try dig.query.Select.init(allocator, "users");
-    defer query.deinit();
-
-    const sql = try (try query
-        .select(&[_][]const u8{"id", "name", "email"})
-        .where("age", ">", .{ .integer = 18 }))
+    // Build and execute a query using chainable query builder
+    var result = try db.table("users")
+        .select(&.{"id", "name", "email"})
+        .where("age", ">", .{.integer = 18})
         .orderBy("name", .asc)
-        .toSql(.postgresql);
-    defer allocator.free(sql);
-
-    // Execute the query
-    var result = try db.query(sql);
+        .get();
     defer result.deinit();
 
     // Process results
@@ -233,10 +227,11 @@ defer result.deinit(); // Free query result
 Planned features:
 
 - ✅ Migration system (completed in v0.1.0)
+- ✅ JOIN support in SELECT queries (completed)
+- ✅ Chainable query builder (completed)
 - Prepared statements support
 - Connection pooling
 - Relationship definitions (foreign keys)
-- JOIN support in SELECT queries
 - Subquery support
 - Aggregate functions (COUNT, SUM, AVG, etc.)
 - GROUP BY and HAVING clauses

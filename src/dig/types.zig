@@ -1,6 +1,14 @@
 //! Common type definitions for Dig ORM
 
 const std = @import("std");
+const errors = @import("errors.zig");
+
+/// Helper function to convert allocator errors to DigError
+fn convertAllocatorError(err: std.mem.Allocator.Error) errors.DigError {
+    return switch (err) {
+        error.OutOfMemory => errors.DigError.OutOfMemory,
+    };
+}
 
 /// Database type enumeration
 pub const DatabaseType = enum {
@@ -21,37 +29,37 @@ pub const SqlValue = union(enum) {
 
     /// Convert SqlValue to string representation for SQL
     /// Returns an allocated string that must be freed by the caller
-    pub fn toSqlString(self: SqlValue, allocator: std.mem.Allocator) ![]const u8 {
+    pub fn toSqlString(self: SqlValue, allocator: std.mem.Allocator) errors.DigError![]const u8 {
         return switch (self) {
-            .null => try allocator.dupe(u8, "NULL"),
-            .integer => |v| try std.fmt.allocPrint(allocator, "{d}", .{v}),
-            .float => |v| try std.fmt.allocPrint(allocator, "{d}", .{v}),
+            .null => allocator.dupe(u8, "NULL") catch |err| return convertAllocatorError(err),
+            .integer => |v| std.fmt.allocPrint(allocator, "{d}", .{v}) catch |err| return convertAllocatorError(err),
+            .float => |v| std.fmt.allocPrint(allocator, "{d}", .{v}) catch |err| return convertAllocatorError(err),
             .text => |v| {
-                var escaped = try std.ArrayList(u8).initCapacity(allocator, v.len * 2 + 2);
+                var escaped = std.ArrayList(u8).initCapacity(allocator, v.len * 2 + 2) catch |err| return convertAllocatorError(err);
                 defer escaped.deinit(allocator);
-                try escaped.append(allocator, '\'');
+                escaped.append(allocator, '\'') catch |err| return convertAllocatorError(err);
                 for (v) |c| {
                     if (c == '\'') {
-                        try escaped.appendSlice(allocator, "''");
+                        escaped.appendSlice(allocator, "''") catch |err| return convertAllocatorError(err);
                     } else {
-                        try escaped.append(allocator, c);
+                        escaped.append(allocator, c) catch |err| return convertAllocatorError(err);
                     }
                 }
-                try escaped.append(allocator, '\'');
-                return escaped.toOwnedSlice(allocator);
+                escaped.append(allocator, '\'') catch |err| return convertAllocatorError(err);
+                return escaped.toOwnedSlice(allocator) catch |err| convertAllocatorError(err);
             },
-            .boolean => |v| try allocator.dupe(u8, if (v) "TRUE" else "FALSE"),
+            .boolean => |v| allocator.dupe(u8, if (v) "TRUE" else "FALSE") catch |err| return convertAllocatorError(err),
             .blob => |v| {
-                var hex = try std.ArrayList(u8).initCapacity(allocator, v.len * 2 + 3);
+                var hex = std.ArrayList(u8).initCapacity(allocator, v.len * 2 + 3) catch |err| return convertAllocatorError(err);
                 defer hex.deinit(allocator);
-                try hex.appendSlice(allocator, "x'");
+                hex.appendSlice(allocator, "x'") catch |err| return convertAllocatorError(err);
                 for (v) |b| {
-                    try std.fmt.format(hex.writer(allocator), "{x:0>2}", .{b});
+                    std.fmt.format(hex.writer(allocator), "{x:0>2}", .{b}) catch |err| return convertAllocatorError(err);
                 }
-                try hex.append(allocator, '\'');
-                return hex.toOwnedSlice(allocator);
+                hex.append(allocator, '\'') catch |err| return convertAllocatorError(err);
+                return hex.toOwnedSlice(allocator) catch |err| convertAllocatorError(err);
             },
-            .timestamp => |v| try std.fmt.allocPrint(allocator, "{d}", .{v}),
+            .timestamp => |v| std.fmt.allocPrint(allocator, "{d}", .{v}) catch |err| return convertAllocatorError(err),
         };
     }
 };

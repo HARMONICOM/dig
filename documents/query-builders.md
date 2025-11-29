@@ -43,6 +43,8 @@ pub fn main() !void {
     defer conn.disconnect();
 
     // Build and execute query in one chain
+    // Note: table() and chain methods don't return errors
+    // Only get(), execute(), and first() return errors
     var result = try conn.table("users")
         .select(&.{"id", "name", "email"})
         .where("age", ">", .{.integer = 18})
@@ -81,6 +83,16 @@ defer result.deinit();
 - `dig.query.Delete` - DELETE query builder
 
 **Note**: For backward compatibility, aliases `SelectQuery`, `InsertQuery`, `UpdateQuery`, and `DeleteQuery` are also available.
+
+**Error Handling**:
+- Chainable query builder methods (`select`, `where`, `join`, `orderBy`, `limit`, `offset`, `addValue`, `set`, `delete`, etc.) do **not** return errors. Errors are stored internally and checked when executing.
+- Only execution methods (`get()`, `execute()`, `first()`) return `dig.errors.DigError!` error unions.
+- The `table()` method also does not return errors.
+
+Common errors include:
+- `QueryBuildError` - Invalid query builder operation (e.g., using JOIN on non-SELECT query)
+- `QueryExecutionFailed` - Query execution failed
+- `OutOfMemory` - Memory allocation failed
 
 ---
 
@@ -136,7 +148,8 @@ Use `conn.table()` to start building a query:
 var conn = try dig.db.connect(allocator, config);
 defer conn.disconnect();
 
-var builder = try conn.table("users");
+// table() does not return errors
+var builder = conn.table("users");
 defer builder.deinit();
 ```
 
@@ -146,6 +159,7 @@ defer builder.deinit();
 
 ```zig
 // Select all columns
+// Only get() returns an error, not table() or other chain methods
 var result = try conn.table("users").get();
 defer result.deinit();
 ```
@@ -153,6 +167,7 @@ defer result.deinit();
 #### Select Specific Columns
 
 ```zig
+// Chain methods don't return errors, only get() does
 var result = try conn.table("users")
     .select(&.{"id", "name", "email"})
     .get();
@@ -162,54 +177,64 @@ defer result.deinit();
 #### With WHERE Clause
 
 ```zig
+// Chain methods (select, where) don't return errors
 var result = try conn.table("users")
     .select(&.{"id", "name"})
     .where("age", ">", .{.integer = 18})
-    .get();
+    .get();  // Only get() returns an error
 defer result.deinit();
 ```
 
 #### Multiple WHERE Clauses
 
 ```zig
+// Multiple where clauses - no try needed for chain methods
 var result = try conn.table("users")
     .select(&.{"id", "name"})
     .where("age", ">=", .{.integer = 18})
     .where("active", "=", .{.boolean = true})
-    .get();
+    .get();  // Only get() returns an error
 defer result.deinit();
 ```
 
 #### ORDER BY
 
 ```zig
+// orderBy doesn't return errors
 var result = try conn.table("users")
     .orderBy("created_at", .desc)
-    .get();
+    .get();  // Only get() returns an error
 defer result.deinit();
 ```
 
 #### LIMIT and OFFSET
 
 ```zig
+// limit and offset don't return errors
 var result = try conn.table("users")
     .orderBy("id", .asc)
     .limit(10)
     .offset(20)
-    .get();
+    .get();  // Only get() returns an error
 defer result.deinit();
 ```
 
 #### Get First Result
 
 ```zig
+// first() returns an error, chain methods don't
+// Note: first() internally calls get() and returns the first row
+// The QueryResult is managed internally, but you should handle the row carefully
 var first_row = try conn.table("users")
     .where("email", "=", .{.text = "john@example.com"})
-    .first();
+    .first();  // first() returns an error
 
 if (first_row) |row| {
     // Process first row
-    // Note: You still need to manage the result properly
+    // The row is part of a QueryResult that is managed internally
+    const id = row.get("id").?.integer;
+    const name = row.get("name").?.text;
+    std.debug.print("Found user: {d} - {s}\n", .{id, name});
 }
 ```
 
@@ -218,46 +243,51 @@ if (first_row) |row| {
 ##### INNER JOIN
 
 ```zig
+// join() doesn't return errors
 var result = try conn.table("users")
     .select(&.{"users.id", "users.name", "posts.title"})
     .join("posts", "users.id", "posts.user_id")
-    .get();
+    .get();  // Only get() returns an error
 defer result.deinit();
 ```
 
 ##### LEFT JOIN
 
 ```zig
+// leftJoin() doesn't return errors
 var result = try conn.table("users")
     .select(&.{"users.id", "users.name", "posts.title"})
     .leftJoin("posts", "users.id", "posts.user_id")
-    .get();
+    .get();  // Only get() returns an error
 defer result.deinit();
 ```
 
 ##### RIGHT JOIN
 
 ```zig
+// rightJoin() doesn't return errors
 var result = try conn.table("users")
     .select(&.{"users.id", "users.name", "posts.title"})
     .rightJoin("posts", "users.id", "posts.user_id")
-    .get();
+    .get();  // Only get() returns an error
 defer result.deinit();
 ```
 
 ##### FULL OUTER JOIN
 
 ```zig
+// fullJoin() doesn't return errors
 var result = try conn.table("users")
     .select(&.{"users.id", "users.name", "posts.title"})
     .fullJoin("posts", "users.id", "posts.user_id")
-    .get();
+    .get();  // Only get() returns an error
 defer result.deinit();
 ```
 
 ##### Multiple JOINs
 
 ```zig
+// All chain methods don't return errors
 var result = try conn.table("users")
     .select(&.{"u.id", "u.name", "p.title", "c.content"})
     .join("posts p", "users.id", "p.user_id")
@@ -265,13 +295,14 @@ var result = try conn.table("users")
     .where("u.active", "=", .{.boolean = true})
     .orderBy("u.name", .asc)
     .limit(20)
-    .get();
+    .get();  // Only get() returns an error
 defer result.deinit();
 ```
 
 ##### JOIN with WHERE and ORDER BY
 
 ```zig
+// Chain methods don't return errors
 var result = try conn.table("users")
     .select(&.{"users.name", "posts.title", "posts.created_at"})
     .join("posts", "users.id", "posts.user_id")
@@ -279,7 +310,7 @@ var result = try conn.table("users")
     .where("users.age", ">=", .{.integer = 18})
     .orderBy("posts.created_at", .desc)
     .limit(10)
-    .get();
+    .get();  // Only get() returns an error
 defer result.deinit();
 ```
 
@@ -288,11 +319,12 @@ defer result.deinit();
 #### Single Row Insert
 
 ```zig
+// addValue() doesn't return errors, only execute() does
 try conn.table("users")
     .addValue("name", .{.text = "John Doe"})
     .addValue("email", .{.text = "john@example.com"})
     .addValue("age", .{.integer = 30})
-    .execute();
+    .execute();  // Only execute() returns an error
 ```
 
 #### Insert with HashMap
@@ -305,9 +337,10 @@ try values.put("name", .{.text = "Jane Doe"});
 try values.put("email", .{.text = "jane@example.com"});
 try values.put("age", .{.integer = 25});
 
+// setValues() doesn't return errors, only execute() does
 try conn.table("users")
     .setValues(values)
-    .execute();
+    .execute();  // Only execute() returns an error
 ```
 
 ### 3.4 UPDATE Queries
@@ -315,21 +348,23 @@ try conn.table("users")
 #### Update Single Column
 
 ```zig
+// set() and where() don't return errors, only execute() does
 try conn.table("users")
     .set("name", .{.text = "John Smith"})
     .where("id", "=", .{.integer = 1})
-    .execute();
+    .execute();  // Only execute() returns an error
 ```
 
 #### Update Multiple Columns
 
 ```zig
+// Chain methods don't return errors
 try conn.table("users")
     .set("name", .{.text = "Jane Smith"})
     .set("email", .{.text = "jane.smith@example.com"})
     .set("age", .{.integer = 26})
     .where("id", "=", .{.integer = 2})
-    .execute();
+    .execute();  // Only execute() returns an error
 ```
 
 #### Update with HashMap
@@ -341,10 +376,11 @@ defer values.deinit();
 try values.put("name", .{.text = "Updated Name"});
 try values.put("updated_at", .{.timestamp = std.time.timestamp()});
 
+// setMultiple() and where() don't return errors
 try conn.table("users")
     .setMultiple(values)
     .where("id", "=", .{.integer = 3})
-    .execute();
+    .execute();  // Only execute() returns an error
 ```
 
 ### 3.5 DELETE Queries
@@ -352,19 +388,21 @@ try conn.table("users")
 #### Delete with WHERE
 
 ```zig
+// delete() and where() don't return errors
 try conn.table("users")
     .delete()
     .where("id", "=", .{.integer = 1})
-    .execute();
+    .execute();  // Only execute() returns an error
 ```
 
 #### Delete Multiple Rows
 
 ```zig
+// Chain methods don't return errors
 try conn.table("users")
     .delete()
     .where("active", "=", .{.boolean = false})
-    .execute();
+    .execute();  // Only execute() returns an error
 ```
 
 ### 3.6 Complete Example
@@ -390,6 +428,7 @@ pub fn main() !void {
     defer conn.disconnect();
 
     // Insert a user
+    // Chain methods don't return errors, only execute() does
     try conn.table("users")
         .addValue("name", .{.text = "Alice"})
         .addValue("email", .{.text = "alice@example.com"})
@@ -397,6 +436,7 @@ pub fn main() !void {
         .execute();
 
     // Query users
+    // Chain methods don't return errors, only get() does
     var result = try conn.table("users")
         .select(&.{"id", "name", "email"})
         .where("age", ">=", .{.integer = 18})
@@ -412,12 +452,14 @@ pub fn main() !void {
     }
 
     // Update a user
+    // Chain methods don't return errors, only execute() does
     try conn.table("users")
         .set("age", .{.integer = 29})
         .where("email", "=", .{.text = "alice@example.com"})
         .execute();
 
     // Delete a user
+    // Chain methods don't return errors, only execute() does
     try conn.table("users")
         .delete()
         .where("email", "=", .{.text = "alice@example.com"})
@@ -1141,13 +1183,43 @@ try db.commit();
 
 ### 9.3 Handle Errors Explicitly
 
+**Important**: Chainable query builder methods (`select`, `where`, `join`, `orderBy`, `limit`, `offset`, `addValue`, `set`, `delete`, etc.) do **not** return errors. Errors are stored internally and checked when executing.
+
+Only execution methods (`get()`, `execute()`, `first()`) return `dig.errors.DigError!` error unions. Handle errors explicitly:
+
 ```zig
-const result = db.query(sql) catch |err| {
-    std.debug.print("Query failed: {any}\n", .{err});
-    return err;
-};
+const std = @import("std");
+const dig = @import("dig");
+
+// Only get() returns an error, not the chain methods
+const result = try conn.table("users")
+    .select(&.{"id", "name"})
+    .where("age", ">", .{.integer = 18})
+    .get() catch |err| switch (err) {
+        error.QueryBuildError => {
+            std.debug.print("Invalid query builder operation\n", .{});
+            return err;
+        },
+        error.QueryExecutionFailed => {
+            std.debug.print("Query execution failed\n", .{});
+            return err;
+        },
+        error.OutOfMemory => {
+            std.debug.print("Out of memory\n", .{});
+            return err;
+        },
+        else => {
+            std.debug.print("Unexpected error: {any}\n", .{err});
+            return err;
+        },
+    };
 defer result.deinit();
 ```
+
+**Common Query Builder Errors**:
+- `QueryBuildError` - Invalid query builder operation (e.g., using JOIN on non-SELECT query, or errors stored during chain building)
+- `QueryExecutionFailed` - Query execution failed at database level
+- `OutOfMemory` - Memory allocation failed during query building or execution
 
 ### 9.4 Check for NULL Values
 

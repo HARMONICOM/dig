@@ -24,10 +24,10 @@ pub const Db = struct {
 
 **Key Methods**:
 - `connect(allocator, config)` - Connect to database
-- `disconnect()` - Close connection
+- `disconnect()` - Close connection and free resources
 - `execute(sql)` - Execute SQL without returning results
 - `query(sql)` - Execute SQL and return results
-- `table(table_name)` - Start a chainable query builder for a table
+- `table(table_name)` - Start a chainable query builder for a table (returns `*QueryBuilder`, does not return errors)
 - `beginTransaction()` - Start transaction
 - `commit()` - Commit transaction
 - `rollback()` - Roll back transaction
@@ -183,7 +183,52 @@ pub const ColumnType = enum {
 
 ## 3. Query Builders
 
-### 3.1 Select
+### 3.1 QueryBuilder (Chainable)
+
+Chainable query builder for building and executing queries directly on database connections.
+
+**Module**: `dig.query_builder`
+
+```zig
+pub const QueryBuilder = struct {
+    conn: *Connection,
+    table_name: []const u8,
+    db_type: DatabaseType,
+    allocator: std.mem.Allocator,
+    query_type: QueryType,
+    build_error: ?DigError = null,
+};
+```
+
+**Key Methods**:
+- `init(conn, table_name, db_type, allocator)` - Create query builder (via `db.table()`)
+- `deinit()` - Free resources
+- `select(columns)` - Set columns to select
+- `join(table, left_column, right_column)` - Add INNER JOIN
+- `leftJoin(table, left_column, right_column)` - Add LEFT JOIN
+- `rightJoin(table, left_column, right_column)` - Add RIGHT JOIN
+- `fullJoin(table, left_column, right_column)` - Add FULL OUTER JOIN
+- `where(column, operator, value)` - Add WHERE clause
+- `orderBy(column, direction)` - Add ORDER BY
+- `limit(count)` - Add LIMIT
+- `offset(count)` - Add OFFSET
+- `get()` - Execute SELECT query and return results
+- `first()` - Execute SELECT query and return first result
+- `addValue(column, value)` - Add value for INSERT
+- `setValues(hash_map)` - Set multiple values for INSERT
+- `set(column, value)` - Set column value for UPDATE
+- `setMultiple(hash_map)` - Set multiple columns for UPDATE
+- `delete()` - Start DELETE query
+- `execute()` - Execute INSERT, UPDATE, or DELETE query
+- `toSql()` - Generate SQL string
+
+**Note**: Chain methods (`select`, `where`, `join`, etc.) do not return errors. Errors are stored internally and checked when executing. Only `get()`, `execute()`, `first()`, and `toSql()` return errors.
+
+**See**: [`query-builders.md`](./query-builders.md)
+
+---
+
+### 3.2 Select
 
 SELECT query builder.
 
@@ -455,6 +500,7 @@ pub const DigError = error{
     UnsupportedDatabase,
     InvalidParameter,
     OutOfMemory,
+    QueryBuildError,
 };
 ```
 
@@ -463,6 +509,8 @@ pub const DigError = error{
 - `QueryExecutionFailed` - Query execution failed
 - `UnsupportedDatabase` - Database driver not enabled (rebuild with driver flag)
 - `TransactionFailed` - Transaction operation failed
+- `QueryBuildError` - Query builder operation failed (e.g., invalid query type for operation)
+- `OutOfMemory` - Memory allocation failed
 
 **See**: [`getting-started.md`](./getting-started.md), [`database-drivers.md`](./database-drivers.md)
 
@@ -572,6 +620,19 @@ try db.execute(sql);
 
 ### 9.3 Building a SELECT Query
 
+**Method 1: Chainable Query Builder (Recommended)**
+
+```zig
+var result = try db.table("users")
+    .select(&.{"id", "name"})
+    .where("age", ">", .{.integer = 18})
+    .orderBy("name", .asc)
+    .get();
+defer result.deinit();
+```
+
+**Method 2: Traditional Query Builder**
+
 ```zig
 var query = try dig.query.Select.init(allocator, "users");
 defer query.deinit();
@@ -579,6 +640,7 @@ defer query.deinit();
 const sql = try (try query
     .select(&[_][]const u8{"id", "name"})
     .where("age", ">", .{ .integer = 18 }))
+    .orderBy("name", .asc)
     .toSql(.postgresql);
 defer allocator.free(sql);
 
@@ -587,6 +649,17 @@ defer result.deinit();
 ```
 
 ### 9.4 Inserting Data
+
+**Method 1: Chainable Query Builder (Recommended)**
+
+```zig
+try db.table("users")
+    .addValue("name", .{.text = "Alice"})
+    .addValue("age", .{.integer = 30})
+    .execute();
+```
+
+**Method 2: Traditional Query Builder**
 
 ```zig
 var query = try dig.query.Insert.init(allocator, "users");

@@ -78,7 +78,8 @@ The project follows the structure defined in AGENTS.md:
 │   │   ├── libs/            # C library bindings
 │   │   │   ├── libmysql.zig     # MySQL C API bindings
 │   │   │   └── libpq.zig        # PostgreSQL C API bindings
-│   │   ├── query.zig        # Query builders
+│   │   ├── query.zig        # Query builders (Select, Insert, Update, Delete)
+│   │   ├── queryBuilder.zig # Chainable query builder
 │   │   ├── schema.zig       # Schema definition
 │   │   └── types.zig        # Core type definitions
 │   └── tests/               # Test files
@@ -229,11 +230,21 @@ Used for:
 
 ### 5.1 Query Builder Lifecycle
 
+**Traditional Query Builder**:
 ```
 1. init()          → Create builder with allocator
 2. Method calls    → Build query structure
 3. toSql()         → Generate SQL string
-4. deinit()        → Free builder resources
+4. Execute SQL     → Use db.query() or db.execute()
+5. deinit()        → Free builder resources
+```
+
+**Chainable Query Builder** (via `db.table()`):
+```
+1. table()         → Create builder from connection
+2. Method calls    → Build query structure (no errors returned)
+3. get()/execute() → Execute query directly (returns errors)
+4. deinit()        → Free builder resources (if needed)
 ```
 
 ### 5.2 SQL Generation Flow
@@ -250,6 +261,24 @@ Formatted SQL String
 
 ### 5.3 Example: SELECT Query Building
 
+**Chainable Query Builder** (Recommended):
+
+```zig
+// Step 1: Start from connection
+// Step 2: Build query structure (chain methods don't return errors)
+// Step 3: Execute directly
+var result = try db.table("users")
+    .select(&.{"id", "name"})
+    .where("age", ">", .{.integer = 18})
+    .orderBy("name", .asc)
+    .limit(10)
+    .get();  // Only get() returns an error
+defer result.deinit();
+// Result: Query executed, results available in result.rows
+```
+
+**Traditional Query Builder**:
+
 ```zig
 // Step 1: Initialize
 var query = try dig.query.Select.init(allocator, "users");
@@ -264,7 +293,11 @@ query.limit(10);
 const sql = try query.toSql(.postgresql);
 // Result: "SELECT id, name FROM users WHERE age > 18 ORDER BY name ASC LIMIT 10"
 
-// Step 4: Cleanup
+// Step 4: Execute
+var result = try db.query(sql);
+defer result.deinit();
+
+// Step 5: Cleanup
 query.deinit();
 allocator.free(sql);
 ```
@@ -421,9 +454,19 @@ pub const DigError = error{
     ConnectionFailed,
     QueryExecutionFailed,
     InvalidQuery,
-    // ...
+    InvalidSchema,
+    TypeMismatch,
+    NotFound,
+    TransactionFailed,
+    InvalidConnectionString,
+    UnsupportedDatabase,
+    InvalidParameter,
+    OutOfMemory,
+    QueryBuildError,
 };
 ```
+
+All query builder methods return `DigError!` error unions, ensuring consistent error handling across the API.
 
 ## 8. Extension Points
 
