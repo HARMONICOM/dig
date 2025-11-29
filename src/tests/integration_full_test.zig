@@ -30,20 +30,18 @@ test "Integration: complete CRUD workflow with query builder" {
     defer db.execute("DROP TABLE IF EXISTS test_crud") catch {};
 
     // CREATE
-    var insert_builder = try db.table("test_crud");
-    defer insert_builder.deinit();
+    var insert_builder = db.table("test_crud");
 
-    _ = try insert_builder.addValue("name", .{ .text = "Alice" });
-    _ = try insert_builder.addValue("email", .{ .text = "alice@example.com" });
-    _ = try insert_builder.addValue("age", .{ .integer = 30 });
+    _ = insert_builder.addValue("name", .{ .text = "Alice" });
+    _ = insert_builder.addValue("email", .{ .text = "alice@example.com" });
+    _ = insert_builder.addValue("age", .{ .integer = 30 });
     try insert_builder.execute();
 
     // READ (mock returns empty result)
-    var select_builder = try db.table("test_crud");
-    defer select_builder.deinit();
+    var select_builder = db.table("test_crud");
 
-    _ = try select_builder.select(&.{ "id", "name", "email", "age" });
-    _ = try select_builder.where("email", "=", .{ .text = "alice@example.com" });
+    _ = select_builder.select(&.{ "id", "name", "email", "age" });
+    _ = select_builder.where("email", "=", .{ .text = "alice@example.com" });
     var result = try select_builder.get();
     defer result.deinit();
 
@@ -51,19 +49,17 @@ test "Integration: complete CRUD workflow with query builder" {
     try testing.expect(result.rows.len == 0);
 
     // UPDATE
-    var update_builder = try db.table("test_crud");
-    defer update_builder.deinit();
+    var update_builder = db.table("test_crud");
 
-    _ = try update_builder.set("age", .{ .integer = 31 });
-    _ = try update_builder.where("email", "=", .{ .text = "alice@example.com" });
+    _ = update_builder.set("age", .{ .integer = 31 });
+    _ = update_builder.where("email", "=", .{ .text = "alice@example.com" });
     try update_builder.execute();
 
     // Verify update
-    var verify_builder = try db.table("test_crud");
-    defer verify_builder.deinit();
+    var verify_builder = db.table("test_crud");
 
-    _ = try verify_builder.select(&.{"age"});
-    _ = try verify_builder.where("email", "=", .{ .text = "alice@example.com" });
+    _ = verify_builder.select(&.{"age"});
+    _ = verify_builder.where("email", "=", .{ .text = "alice@example.com" });
     var verify_result = try verify_builder.get();
     defer verify_result.deinit();
 
@@ -72,16 +68,14 @@ test "Integration: complete CRUD workflow with query builder" {
     // try testing.expect(age.integer == 31);
 
     // DELETE
-    var delete_builder = try db.table("test_crud");
-    defer delete_builder.deinit();
+    var delete_builder = db.table("test_crud");
 
-    _ = try delete_builder.delete();
-    _ = try delete_builder.where("email", "=", .{ .text = "alice@example.com" });
+    _ = delete_builder.delete();
+    _ = delete_builder.where("email", "=", .{ .text = "alice@example.com" });
     try delete_builder.execute();
 
     // Verify deletion
-    var final_builder = try db.table("test_crud");
-    defer final_builder.deinit();
+    var final_builder = db.table("test_crud");
 
     var final_result = try final_builder.get();
     defer final_result.deinit();
@@ -129,13 +123,12 @@ test "Integration: complex JOIN query workflow" {
     try db.execute("INSERT INTO test_posts_join (user_id, title) VALUES (2, 'Bob Post 1')");
 
     // Query with JOIN
-    var builder = try db.table("test_users_join");
-    defer builder.deinit();
+    var builder = db.table("test_users_join");
 
-    _ = try builder.select(&.{ "test_users_join.name", "test_posts_join.title" });
-    _ = try builder.join("test_posts_join", "test_users_join.id", "test_posts_join.user_id");
-    _ = try builder.where("test_users_join.name", "=", .{ .text = "Alice" });
-    _ = try builder.orderBy("test_posts_join.title", .asc);
+    _ = builder.select(&.{ "test_users_join.name", "test_posts_join.title" });
+    _ = builder.join("test_posts_join", "test_users_join.id", "test_posts_join.user_id");
+    _ = builder.where("test_users_join.name", "=", .{ .text = "Alice" });
+    _ = builder.orderBy("test_posts_join.title", .asc);
     var result = try builder.get();
     defer result.deinit();
 
@@ -232,19 +225,17 @@ test "Integration: migration and schema workflow" {
     defer db.execute("DROP TABLE IF EXISTS test_schema_workflow") catch {};
 
     // Insert data using query builder
-    var insert_builder = try db.table("test_schema_workflow");
-    defer insert_builder.deinit();
+    var insert_builder = db.table("test_schema_workflow");
 
-    _ = try insert_builder.addValue("username", .{ .text = "testuser" });
-    _ = try insert_builder.addValue("created_at", .{ .timestamp = std.time.timestamp() });
+    _ = insert_builder.addValue("username", .{ .text = "testuser" });
+    _ = insert_builder.addValue("created_at", .{ .timestamp = std.time.timestamp() });
     try insert_builder.execute();
 
     // Query data
-    var select_builder = try db.table("test_schema_workflow");
-    defer select_builder.deinit();
+    var select_builder = db.table("test_schema_workflow");
 
-    _ = try select_builder.select(&.{"username"});
-    _ = try select_builder.where("username", "=", .{ .text = "testuser" });
+    _ = select_builder.select(&.{"username"});
+    _ = select_builder.where("username", "=", .{ .text = "testuser" });
     var result = try select_builder.get();
     defer result.deinit();
 
@@ -351,13 +342,12 @@ test "Integration: pagination workflow" {
     }
 
     // Test pagination: page 1 (limit 10, offset 0)
-    var page1_builder = try db.table("test_pagination");
-    defer page1_builder.deinit();
+    var page1_builder = db.table("test_pagination");
 
-    _ = try page1_builder.select(&.{"value"});
-    _ = try page1_builder.orderBy("value", .asc);
-    _ = try page1_builder.limit(10);
-    _ = try page1_builder.offset(0);
+    _ = page1_builder.select(&.{"value"});
+    _ = page1_builder.orderBy("value", .asc);
+    _ = page1_builder.limit(10);
+    _ = page1_builder.offset(0);
     var page1_result = try page1_builder.get();
     defer page1_result.deinit();
 
@@ -365,13 +355,12 @@ test "Integration: pagination workflow" {
     try testing.expect(page1_result.rows.len == 0);
 
     // Test pagination: page 3 (limit 10, offset 20)
-    var page3_builder = try db.table("test_pagination");
-    defer page3_builder.deinit();
+    var page3_builder = db.table("test_pagination");
 
-    _ = try page3_builder.select(&.{"value"});
-    _ = try page3_builder.orderBy("value", .asc);
-    _ = try page3_builder.limit(10);
-    _ = try page3_builder.offset(20);
+    _ = page3_builder.select(&.{"value"});
+    _ = page3_builder.orderBy("value", .asc);
+    _ = page3_builder.limit(10);
+    _ = page3_builder.offset(20);
     var page3_result = try page3_builder.get();
     defer page3_result.deinit();
 

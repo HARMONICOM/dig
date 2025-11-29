@@ -19,12 +19,17 @@ pub const Db = struct {
     db_type: types.DatabaseType,
     allocator: std.mem.Allocator,
     conn_state: *anyopaque, // Store connection state pointer for cleanup
+    query_builder: ?query_builder.QueryBuilder = null, // Query builder instance for method chaining
 
     /// Create a new database connection
     pub fn connect(allocator: std.mem.Allocator, config: types.ConnectionConfig) errors.DigError!Self {
-        var instance: Self = undefined;
-        instance.db_type = config.database_type;
-        instance.allocator = allocator;
+        var instance: Self = .{
+            .db_type = config.database_type,
+            .allocator = allocator,
+            .conn = undefined,
+            .conn_state = undefined,
+            .query_builder = null,
+        };
 
         switch (config.database_type) {
             .postgresql => {
@@ -63,6 +68,10 @@ pub const Db = struct {
 
     /// Disconnect from database
     pub fn disconnect(self: *Self) void {
+        if (self.query_builder) |*qb| {
+            qb.deinit();
+            self.query_builder = null;
+        }
         self.conn.disconnect();
         switch (self.db_type) {
             .postgresql => {
@@ -111,7 +120,7 @@ pub const Db = struct {
     }
 
     /// Start a query builder for a table
-    /// Returns a QueryBuilder that can be used to chain query methods
+    /// Returns a pointer to QueryBuilder that can be used to chain query methods
     /// and execute them directly on this connection
     ///
     /// Example:
@@ -123,7 +132,12 @@ pub const Db = struct {
     ///     .get();
     /// defer result.deinit();
     /// ```
-    pub fn table(self: *Self, table_name: []const u8) errors.DigError!query_builder.QueryBuilder {
-        return query_builder.QueryBuilder.init(&self.conn, table_name, self.db_type, self.allocator);
+    pub fn table(self: *Self, table_name: []const u8) *query_builder.QueryBuilder {
+        // Clean up existing query builder if present
+        if (self.query_builder) |*qb| {
+            qb.deinit();
+        }
+        self.query_builder = query_builder.QueryBuilder.init(&self.conn, table_name, self.db_type, self.allocator);
+        return &self.query_builder.?;
     }
 };

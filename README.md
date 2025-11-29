@@ -11,11 +11,12 @@ Dig ORM is a lightweight, type-safe SQL query builder library for Zig that provi
 ## Features
 
 - **Type-safe query building**: Build SQL queries with compile-time type checking
-- **Fluent API**: Chain methods to build queries intuitively
+- **Fluent API**: Chain methods to build queries intuitively with chainable query builders
 - **Multi-database support**: PostgreSQL and MySQL with full driver implementations
 - **Schema definition**: Define tables and columns with a simple API
 - **Migration system**: Database schema versioning with up/down migrations
 - **Transaction support**: Built-in transaction management (BEGIN/COMMIT/ROLLBACK)
+- **JOIN support**: Full support for INNER, LEFT, RIGHT, and FULL OUTER JOINs
 - **Result parsing**: Automatic type conversion from database results
 - **C library bindings**: Complete bindings for libpq and libmysqlclient
 - **Pure Zig implementation**: Core logic in Zig with FFI to C libraries
@@ -41,7 +42,7 @@ Dig ORM is a lightweight, type-safe SQL query builder library for Zig that provi
 1. **Fetch Dig as a dependency:**
 
 ```bash
-zig fetch --save-exact=dig https://github.com/HARMONICOM/dig/archive/refs/tags/v0.1.1.tar.gz
+zig fetch --save-exact=dig https://github.com/HARMONICOM/dig/archive/refs/tags/v0.1.2.tar.gz
 ```
 
 2. **Configure `build.zig`:**
@@ -149,6 +150,21 @@ try conn.table("users")
     .delete()
     .where("age", "<", .{.integer = 18})
     .execute();
+
+// JOIN query - INNER JOIN
+var result = try conn.table("users")
+    .select(&.{"users.id", "users.name", "posts.title"})
+    .join("posts", "users.id", "posts.user_id")
+    .where("users.active", "=", .{.boolean = true})
+    .get();
+defer result.deinit();
+
+// LEFT JOIN
+var result2 = try conn.table("users")
+    .select(&.{"users.id", "users.name", "posts.title"})
+    .leftJoin("posts", "users.id", "posts.user_id")
+    .get();
+defer result2.deinit();
 ```
 
 **Traditional Query Builder** (still supported)
@@ -309,7 +325,7 @@ dig/
 │   │   ├── drivers/               # Database drivers (PostgreSQL, MySQL)
 │   │   ├── libs/                  # C library bindings
 │   │   ├── migration.zig          # Migration system
-│   │   ├── query.zig              # Query builders
+│   │   ├── query.zig              # Query builders (Select, Insert, Update, Delete)
 │   │   ├── queryBuilder.zig       # Chainable query builder
 │   │   ├── schema.zig             # Schema definitions
 │   │   └── types.zig              # Type definitions

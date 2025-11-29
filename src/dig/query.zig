@@ -4,6 +4,13 @@ const std = @import("std");
 const errors = @import("errors.zig");
 const types = @import("types.zig");
 
+/// Helper function to convert allocator errors to DigError
+fn convertAllocatorError(err: std.mem.Allocator.Error) errors.DigError {
+    return switch (err) {
+        error.OutOfMemory => errors.DigError.OutOfMemory,
+    };
+}
+
 /// Query builder for SELECT statements
 pub const Select = struct {
     const Self = @This();
@@ -44,12 +51,12 @@ pub const Select = struct {
         direction: Direction,
     };
 
-    pub fn init(allocator: std.mem.Allocator, table: []const u8) !Self {
+    pub fn init(allocator: std.mem.Allocator, table: []const u8) errors.DigError!Self {
         return .{
             .table = table,
             .columns = &.{},
-            .joins = try std.ArrayList(JoinClause).initCapacity(allocator, 4),
-            .where_clauses = try std.ArrayList(WhereClause).initCapacity(allocator, 4),
+            .joins = std.ArrayList(JoinClause).initCapacity(allocator, 4) catch |err| return convertAllocatorError(err),
+            .where_clauses = std.ArrayList(WhereClause).initCapacity(allocator, 4) catch |err| return convertAllocatorError(err),
             .order_by = null,
             .limit_value = null,
             .offset_value = null,
@@ -63,55 +70,55 @@ pub const Select = struct {
     }
 
     /// Add INNER JOIN clause
-    pub fn join(self: *Self, table: []const u8, left_column: []const u8, right_column: []const u8) !*Self {
-        try self.joins.append(self.allocator, .{
+    pub fn join(self: *Self, table: []const u8, left_column: []const u8, right_column: []const u8) errors.DigError!*Self {
+        self.joins.append(self.allocator, .{
             .join_type = .inner,
             .table = table,
             .left_column = left_column,
             .right_column = right_column,
-        });
+        }) catch |err| return convertAllocatorError(err);
         return self;
     }
 
     /// Add LEFT JOIN clause
-    pub fn leftJoin(self: *Self, table: []const u8, left_column: []const u8, right_column: []const u8) !*Self {
-        try self.joins.append(self.allocator, .{
+    pub fn leftJoin(self: *Self, table: []const u8, left_column: []const u8, right_column: []const u8) errors.DigError!*Self {
+        self.joins.append(self.allocator, .{
             .join_type = .left,
             .table = table,
             .left_column = left_column,
             .right_column = right_column,
-        });
+        }) catch |err| return convertAllocatorError(err);
         return self;
     }
 
     /// Add RIGHT JOIN clause
-    pub fn rightJoin(self: *Self, table: []const u8, left_column: []const u8, right_column: []const u8) !*Self {
-        try self.joins.append(self.allocator, .{
+    pub fn rightJoin(self: *Self, table: []const u8, left_column: []const u8, right_column: []const u8) errors.DigError!*Self {
+        self.joins.append(self.allocator, .{
             .join_type = .right,
             .table = table,
             .left_column = left_column,
             .right_column = right_column,
-        });
+        }) catch |err| return convertAllocatorError(err);
         return self;
     }
 
     /// Add FULL OUTER JOIN clause
-    pub fn fullJoin(self: *Self, table: []const u8, left_column: []const u8, right_column: []const u8) !*Self {
-        try self.joins.append(self.allocator, .{
+    pub fn fullJoin(self: *Self, table: []const u8, left_column: []const u8, right_column: []const u8) errors.DigError!*Self {
+        self.joins.append(self.allocator, .{
             .join_type = .full,
             .table = table,
             .left_column = left_column,
             .right_column = right_column,
-        });
+        }) catch |err| return convertAllocatorError(err);
         return self;
     }
 
-    pub fn where(self: *Self, column: []const u8, operator: []const u8, value: types.SqlValue) !*Self {
-        try self.where_clauses.append(self.allocator, .{
+    pub fn where(self: *Self, column: []const u8, operator: []const u8, value: types.SqlValue) errors.DigError!*Self {
+        self.where_clauses.append(self.allocator, .{
             .column = column,
             .operator = operator,
             .value = value,
-        });
+        }) catch |err| return convertAllocatorError(err);
         return self;
     }
 
@@ -133,22 +140,22 @@ pub const Select = struct {
         return self;
     }
 
-    pub fn toSql(self: *Self, _: types.DatabaseType) ![]const u8 {
-        var sql = try std.ArrayList(u8).initCapacity(self.allocator, 256);
+    pub fn toSql(self: *Self, _: types.DatabaseType) errors.DigError![]const u8 {
+        var sql = std.ArrayList(u8).initCapacity(self.allocator, 256) catch |err| return convertAllocatorError(err);
         defer sql.deinit(self.allocator);
         var writer = sql.writer(self.allocator);
 
-        try writer.writeAll("SELECT ");
+        writer.writeAll("SELECT ") catch |err| return convertAllocatorError(err);
         if (self.columns.len == 0) {
-            try writer.writeAll("*");
+            writer.writeAll("*") catch |err| return convertAllocatorError(err);
         } else {
             for (self.columns, 0..) |col, i| {
-                if (i > 0) try writer.writeAll(", ");
-                try writer.print("{s}", .{col});
+                if (i > 0) writer.writeAll(", ") catch |err| return convertAllocatorError(err);
+                writer.print("{s}", .{col}) catch |err| return convertAllocatorError(err);
             }
         }
 
-        try writer.print(" FROM {s}", .{self.table});
+        writer.print(" FROM {s}", .{self.table}) catch |err| return convertAllocatorError(err);
 
         // Add JOIN clauses
         for (self.joins.items) |join_clause| {
@@ -158,37 +165,37 @@ pub const Select = struct {
                 .right => "RIGHT JOIN",
                 .full => "FULL OUTER JOIN",
             };
-            try writer.print(" {s} {s} ON {s} = {s}", .{
+            writer.print(" {s} {s} ON {s} = {s}", .{
                 join_type_str,
                 join_clause.table,
                 join_clause.left_column,
                 join_clause.right_column,
-            });
+            }) catch |err| return convertAllocatorError(err);
         }
 
         if (self.where_clauses.items.len > 0) {
-            try writer.writeAll(" WHERE ");
+            writer.writeAll(" WHERE ") catch |err| return convertAllocatorError(err);
             for (self.where_clauses.items, 0..) |clause, i| {
-                if (i > 0) try writer.writeAll(" AND ");
+                if (i > 0) writer.writeAll(" AND ") catch |err| return convertAllocatorError(err);
                 const value_str = try clause.value.toSqlString(self.allocator);
                 defer self.allocator.free(value_str);
-                try writer.print("{s} {s} {s}", .{ clause.column, clause.operator, value_str });
+                writer.print("{s} {s} {s}", .{ clause.column, clause.operator, value_str }) catch |err| return convertAllocatorError(err);
             }
         }
 
         if (self.order_by) |order| {
-            try writer.print(" ORDER BY {s} {s}", .{ order.column, if (order.direction == .asc) "ASC" else "DESC" });
+            writer.print(" ORDER BY {s} {s}", .{ order.column, if (order.direction == .asc) "ASC" else "DESC" }) catch |err| return convertAllocatorError(err);
         }
 
         if (self.limit_value) |limit_val| {
-            try writer.print(" LIMIT {d}", .{limit_val});
+            writer.print(" LIMIT {d}", .{limit_val}) catch |err| return convertAllocatorError(err);
         }
 
         if (self.offset_value) |offset_val| {
-            try writer.print(" OFFSET {d}", .{offset_val});
+            writer.print(" OFFSET {d}", .{offset_val}) catch |err| return convertAllocatorError(err);
         }
 
-        return sql.toOwnedSlice(self.allocator);
+        return sql.toOwnedSlice(self.allocator) catch |err| convertAllocatorError(err);
     }
 
     pub fn deinit(self: *Self) void {
@@ -210,21 +217,21 @@ pub const Insert = struct {
         value: types.SqlValue,
     };
 
-    pub fn init(allocator: std.mem.Allocator, table: []const u8) !Self {
+    pub fn init(allocator: std.mem.Allocator, table: []const u8) errors.DigError!Self {
         return .{
             .table = table,
-            .values = try std.ArrayList(ValuePair).initCapacity(allocator, 4),
+            .values = std.ArrayList(ValuePair).initCapacity(allocator, 8) catch |err| return convertAllocatorError(err),
             .allocator = allocator,
         };
     }
 
-    pub fn addValue(self: *Self, column: []const u8, value: types.SqlValue) !*Self {
-        try self.values.append(self.allocator, .{ .column = column, .value = value });
+    pub fn addValue(self: *Self, column: []const u8, value: types.SqlValue) errors.DigError!*Self {
+        self.values.append(self.allocator, .{ .column = column, .value = value }) catch |err| return convertAllocatorError(err);
         return self;
     }
 
     /// Set multiple values from a hash map
-    pub fn setValues(self: *Self, values: std.StringHashMap(types.SqlValue)) !*Self {
+    pub fn setValues(self: *Self, values: std.StringHashMap(types.SqlValue)) errors.DigError!*Self {
         var iterator = values.iterator();
         while (iterator.next()) |entry| {
             _ = try self.addValue(entry.key_ptr.*, entry.value_ptr.*);
@@ -232,30 +239,30 @@ pub const Insert = struct {
         return self;
     }
 
-    pub fn toSql(self: *Self, _: types.DatabaseType) ![]const u8 {
-        var sql = try std.ArrayList(u8).initCapacity(self.allocator, 256);
+    pub fn toSql(self: *Self, _: types.DatabaseType) errors.DigError![]const u8 {
+        var sql = std.ArrayList(u8).initCapacity(self.allocator, 256) catch |err| return convertAllocatorError(err);
         defer sql.deinit(self.allocator);
         var writer = sql.writer(self.allocator);
 
-        try writer.print("INSERT INTO {s} (", .{self.table});
+        writer.print("INSERT INTO {s} (", .{self.table}) catch |err| return convertAllocatorError(err);
 
         for (self.values.items, 0..) |item, i| {
-            if (i > 0) try writer.writeAll(", ");
-            try writer.print("{s}", .{item.column});
+            if (i > 0) writer.writeAll(", ") catch |err| return convertAllocatorError(err);
+            writer.print("{s}", .{item.column}) catch |err| return convertAllocatorError(err);
         }
 
-        try writer.writeAll(") VALUES (");
+        writer.writeAll(") VALUES (") catch |err| return convertAllocatorError(err);
 
         for (self.values.items, 0..) |item, i| {
-            if (i > 0) try writer.writeAll(", ");
+            if (i > 0) writer.writeAll(", ") catch |err| return convertAllocatorError(err);
             const value_str = try item.value.toSqlString(self.allocator);
             defer self.allocator.free(value_str);
-            try writer.print("{s}", .{value_str});
+            writer.print("{s}", .{value_str}) catch |err| return convertAllocatorError(err);
         }
 
-        try writer.writeAll(")");
+        writer.writeAll(")") catch |err| return convertAllocatorError(err);
 
-        return sql.toOwnedSlice(self.allocator);
+        return sql.toOwnedSlice(self.allocator) catch |err| convertAllocatorError(err);
     }
 
     pub fn deinit(self: *Self) void {
@@ -277,22 +284,22 @@ pub const Update = struct {
         value: types.SqlValue,
     };
 
-    pub fn init(allocator: std.mem.Allocator, table: []const u8) !Self {
+    pub fn init(allocator: std.mem.Allocator, table: []const u8) errors.DigError!Self {
         return .{
             .table = table,
-            .set_clauses = try std.ArrayList(SetClause).initCapacity(allocator, 4),
-            .where_clauses = try std.ArrayList(Select.WhereClause).initCapacity(allocator, 4),
+            .set_clauses = std.ArrayList(SetClause).initCapacity(allocator, 8) catch |err| return convertAllocatorError(err),
+            .where_clauses = std.ArrayList(Select.WhereClause).initCapacity(allocator, 4) catch |err| return convertAllocatorError(err),
             .allocator = allocator,
         };
     }
 
-    pub fn set(self: *Self, column: []const u8, value: types.SqlValue) !*Self {
-        try self.set_clauses.append(self.allocator, .{ .column = column, .value = value });
+    pub fn set(self: *Self, column: []const u8, value: types.SqlValue) errors.DigError!*Self {
+        self.set_clauses.append(self.allocator, .{ .column = column, .value = value }) catch |err| return convertAllocatorError(err);
         return self;
     }
 
     /// Set multiple columns from a hash map
-    pub fn setMultiple(self: *Self, values: std.StringHashMap(types.SqlValue)) !*Self {
+    pub fn setMultiple(self: *Self, values: std.StringHashMap(types.SqlValue)) errors.DigError!*Self {
         var iterator = values.iterator();
         while (iterator.next()) |entry| {
             _ = try self.set(entry.key_ptr.*, entry.value_ptr.*);
@@ -300,40 +307,40 @@ pub const Update = struct {
         return self;
     }
 
-    pub fn where(self: *Self, column: []const u8, operator: []const u8, value: types.SqlValue) !*Self {
-        try self.where_clauses.append(self.allocator, .{
+    pub fn where(self: *Self, column: []const u8, operator: []const u8, value: types.SqlValue) errors.DigError!*Self {
+        self.where_clauses.append(self.allocator, .{
             .column = column,
             .operator = operator,
             .value = value,
-        });
+        }) catch |err| return convertAllocatorError(err);
         return self;
     }
 
-    pub fn toSql(self: *Self, _: types.DatabaseType) ![]const u8 {
-        var sql = try std.ArrayList(u8).initCapacity(self.allocator, 256);
+    pub fn toSql(self: *Self, _: types.DatabaseType) errors.DigError![]const u8 {
+        var sql = std.ArrayList(u8).initCapacity(self.allocator, 256) catch |err| return convertAllocatorError(err);
         defer sql.deinit(self.allocator);
         var writer = sql.writer(self.allocator);
 
-        try writer.print("UPDATE {s} SET ", .{self.table});
+        writer.print("UPDATE {s} SET ", .{self.table}) catch |err| return convertAllocatorError(err);
 
         for (self.set_clauses.items, 0..) |clause, i| {
-            if (i > 0) try writer.writeAll(", ");
+            if (i > 0) writer.writeAll(", ") catch |err| return convertAllocatorError(err);
             const value_str = try clause.value.toSqlString(self.allocator);
             defer self.allocator.free(value_str);
-            try writer.print("{s} = {s}", .{ clause.column, value_str });
+            writer.print("{s} = {s}", .{ clause.column, value_str }) catch |err| return convertAllocatorError(err);
         }
 
         if (self.where_clauses.items.len > 0) {
-            try writer.writeAll(" WHERE ");
+            writer.writeAll(" WHERE ") catch |err| return convertAllocatorError(err);
             for (self.where_clauses.items, 0..) |clause, i| {
-                if (i > 0) try writer.writeAll(" AND ");
+                if (i > 0) writer.writeAll(" AND ") catch |err| return convertAllocatorError(err);
                 const value_str = try clause.value.toSqlString(self.allocator);
                 defer self.allocator.free(value_str);
-                try writer.print("{s} {s} {s}", .{ clause.column, clause.operator, value_str });
+                writer.print("{s} {s} {s}", .{ clause.column, clause.operator, value_str }) catch |err| return convertAllocatorError(err);
             }
         }
 
-        return sql.toOwnedSlice(self.allocator);
+        return sql.toOwnedSlice(self.allocator) catch |err| convertAllocatorError(err);
     }
 
     pub fn deinit(self: *Self) void {
@@ -350,41 +357,41 @@ pub const Delete = struct {
     where_clauses: std.ArrayList(Select.WhereClause),
     allocator: std.mem.Allocator,
 
-    pub fn init(allocator: std.mem.Allocator, table: []const u8) !Self {
+    pub fn init(allocator: std.mem.Allocator, table: []const u8) errors.DigError!Self {
         return .{
             .table = table,
-            .where_clauses = try std.ArrayList(Select.WhereClause).initCapacity(allocator, 4),
+            .where_clauses = std.ArrayList(Select.WhereClause).initCapacity(allocator, 4) catch |err| return convertAllocatorError(err),
             .allocator = allocator,
         };
     }
 
-    pub fn where(self: *Self, column: []const u8, operator: []const u8, value: types.SqlValue) !*Self {
-        try self.where_clauses.append(self.allocator, .{
+    pub fn where(self: *Self, column: []const u8, operator: []const u8, value: types.SqlValue) errors.DigError!*Self {
+        self.where_clauses.append(self.allocator, .{
             .column = column,
             .operator = operator,
             .value = value,
-        });
+        }) catch |err| return convertAllocatorError(err);
         return self;
     }
 
-    pub fn toSql(self: *Self, _: types.DatabaseType) ![]const u8 {
-        var sql = try std.ArrayList(u8).initCapacity(self.allocator, 256);
+    pub fn toSql(self: *Self, _: types.DatabaseType) errors.DigError![]const u8 {
+        var sql = std.ArrayList(u8).initCapacity(self.allocator, 256) catch |err| return convertAllocatorError(err);
         defer sql.deinit(self.allocator);
         var writer = sql.writer(self.allocator);
 
-        try writer.print("DELETE FROM {s}", .{self.table});
+        writer.print("DELETE FROM {s}", .{self.table}) catch |err| return convertAllocatorError(err);
 
         if (self.where_clauses.items.len > 0) {
-            try writer.writeAll(" WHERE ");
+            writer.writeAll(" WHERE ") catch |err| return convertAllocatorError(err);
             for (self.where_clauses.items, 0..) |clause, i| {
-                if (i > 0) try writer.writeAll(" AND ");
+                if (i > 0) writer.writeAll(" AND ") catch |err| return convertAllocatorError(err);
                 const value_str = try clause.value.toSqlString(self.allocator);
                 defer self.allocator.free(value_str);
-                try writer.print("{s} {s} {s}", .{ clause.column, clause.operator, value_str });
+                writer.print("{s} {s} {s}", .{ clause.column, clause.operator, value_str }) catch |err| return convertAllocatorError(err);
             }
         }
 
-        return sql.toOwnedSlice(self.allocator);
+        return sql.toOwnedSlice(self.allocator) catch |err| convertAllocatorError(err);
     }
 
     pub fn deinit(self: *Self) void {

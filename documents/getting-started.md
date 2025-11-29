@@ -173,7 +173,49 @@ pub fn main() !void {
 
 ### 4.2 Using Query Builders
 
-Build queries with the fluent API:
+Build queries with the fluent API. There are two ways to use query builders:
+
+**Method 1: Chainable Query Builder (Recommended)**
+
+```zig
+const std = @import("std");
+const dig = @import("dig");
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const config = dig.types.ConnectionConfig{
+        .database_type = .postgresql,
+        .host = "localhost",
+        .port = 5432,
+        .database = "mydb",
+        .username = "user",
+        .password = "pass",
+    };
+
+    var db = try dig.db.connect(allocator, config);
+    defer db.disconnect();
+
+    // Build and execute a SELECT query in one chain
+    var result = try db.table("users")
+        .select(&.{"id", "name", "email"})
+        .where("age", ">=", .{.integer = 18})
+        .orderBy("name", .asc)
+        .limit(10)
+        .get();
+    defer result.deinit();
+
+    for (result.rows) |row| {
+        const id = row.get("id").?.integer;
+        const name = row.get("name").?.text;
+        std.debug.print("User {d}: {s}\n", .{ id, name });
+    }
+}
+```
+
+**Method 2: Traditional Query Builder**
 
 ```zig
 const std = @import("std");

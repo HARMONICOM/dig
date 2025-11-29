@@ -210,13 +210,14 @@ test "Error handling: query builder with invalid query type combination" {
     });
     defer db.disconnect();
 
-    var builder = try db.table("test_table");
-    defer builder.deinit();
+    var builder = db.table("test_table");
 
     // Try to use orderBy on INSERT (should fail)
-    _ = try builder.addValue("name", .{ .text = "Test" });
-    const result = builder.orderBy("name", .asc);
+    _ = builder.addValue("name", .{ .text = "Test" });
+    _ = builder.orderBy("name", .asc);
 
+    // Error should be set in build_error, verify by calling toSql()
+    const result = builder.toSql();
     try testing.expectError(dig.errors.DigError.QueryBuildError, result);
 }
 

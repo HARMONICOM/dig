@@ -51,8 +51,7 @@ test "Db: table() creates QueryBuilder" {
     });
     defer db.disconnect();
 
-    var builder = try db.table("users");
-    defer builder.deinit();
+    const builder = db.table("users");
 
     // Verify builder is initialized
     try testing.expect(std.mem.eql(u8, builder.table_name, "users"));
@@ -73,8 +72,7 @@ test "Db: table() with different database types" {
     });
     defer pg_db.disconnect();
 
-    var pg_builder = try pg_db.table("products");
-    defer pg_builder.deinit();
+    const pg_builder = pg_db.table("products");
 
     try testing.expect(pg_builder.db_type == .mock);
 
@@ -89,8 +87,7 @@ test "Db: table() with different database types" {
     });
     defer mysql_db.disconnect();
 
-    var mysql_builder = try mysql_db.table("products");
-    defer mysql_builder.deinit();
+    const mysql_builder = mysql_db.table("products");
 
     try testing.expect(mysql_builder.db_type == .mock);
 }
@@ -311,12 +308,11 @@ test "Db: query builder integration" {
     try db.execute("INSERT INTO test_builder (name, age) VALUES ('Bob', 25)");
 
     // Use query builder
-    var builder = try db.table("test_builder");
-    defer builder.deinit();
+    var builder = db.table("test_builder");
 
-    _ = try builder.select(&.{ "name", "age" });
-    _ = try builder.where("age", ">", .{ .integer = 20 });
-    _ = try builder.orderBy("age", .desc);
+    _ = builder.select(&.{ "name", "age" });
+    _ = builder.where("age", ">", .{ .integer = 20 });
+    _ = builder.orderBy("age", .desc);
     var result = try builder.get();
     defer result.deinit();
 

@@ -85,11 +85,12 @@
           <h3 id="features">Key Features</h3>
           <ul>
             <li><strong>Type-safe query building</strong>: Build SQL queries with compile-time type checking.</li>
-            <li><strong>Fluent API</strong>: Chain methods to build queries intuitively.</li>
+            <li><strong>Fluent API</strong>: Chain methods to build queries intuitively with chainable query builders.</li>
             <li><strong>Multi-database support</strong>: PostgreSQL and MySQL with full driver implementations.</li>
             <li><strong>Schema definition</strong>: Define tables and columns with a simple API.</li>
             <li><strong>Migration system</strong>: SQL-based database schema versioning with up/down migrations.</li>
             <li><strong>Transaction support</strong>: Built-in transaction management (BEGIN/COMMIT/ROLLBACK).</li>
+            <li><strong>JOIN support</strong>: Full support for INNER, LEFT, RIGHT, and FULL OUTER JOINs.</li>
             <li><strong>Result parsing</strong>: Automatic type conversion from database results.</li>
             <li><strong>C library bindings</strong>: Complete bindings for libpq and libmysqlclient.</li>
           </ul>
@@ -111,7 +112,7 @@
 
           <h3>1. Add Dig ORM as a dependency</h3>
           <p>Fetch Horizon using Zig's package manager:</p>
-          <pre><code class="code-block">zig fetch --save-exact=dig https://github.com/HARMONICOM/dig/archive/refs/tags/v0.1.1.tar.gz</code></pre>
+          <pre><code class="code-block">zig fetch --save-exact=dig https://github.com/HARMONICOM/dig/archive/refs/tags/v0.1.2.tar.gz</code></pre>
 
           <h3>2. Configure <code>build.zig</code></h3>
           <p>Import the Dig module and enable the database drivers you need:</p>
@@ -220,6 +221,22 @@ defer result.deinit();</code></pre>
     .delete()
     .where("id", "=", .{.integer = 1})
     .execute();</code></pre>
+
+          <h4>JOIN Queries</h4>
+          <pre><code class="code-block">// INNER JOIN
+var result = try conn.table("users")
+    .select(&.{"users.id", "users.name", "posts.title"})
+    .join("posts", "users.id", "posts.user_id")
+    .where("users.active", "=", .{.boolean = true})
+    .get();
+defer result.deinit();
+
+// LEFT JOIN
+var result2 = try conn.table("users")
+    .select(&.{"users.id", "users.name", "posts.title"})
+    .leftJoin("posts", "users.id", "posts.user_id")
+    .get();
+defer result2.deinit();</code></pre>
 
           <h3>Traditional Query Builders</h3>
           <p>Generate SQL separately and execute (still supported):</p>
@@ -444,6 +461,7 @@ try db.commit();</code></pre>
           <ul>
             <li><code>dig.db.connect(allocator, config)</code> - Create a database connection</li>
             <li><code>db.disconnect()</code> - Close the connection</li>
+            <li><code>db.table(name)</code> - Start a chainable query builder</li>
             <li><code>db.execute(query)</code> - Execute a SQL query</li>
             <li><code>db.query(query)</code> - Execute a query and return results</li>
             <li><code>db.beginTransaction()</code> - Start a transaction</li>
@@ -452,6 +470,23 @@ try db.commit();</code></pre>
           </ul>
 
           <h3>Query Builders</h3>
+          <p><strong>Chainable Query Builder</strong> (via <code>db.table()</code>):</p>
+          <ul>
+            <li><code>table(name)</code> - Start a chainable query builder</li>
+            <li><code>select(columns)</code> - Set columns to select</li>
+            <li><code>join/leftJoin/rightJoin/fullJoin</code> - Add JOIN clauses</li>
+            <li><code>where(column, operator, value)</code> - Add WHERE clause</li>
+            <li><code>orderBy(column, direction)</code> - Add ORDER BY</li>
+            <li><code>limit(count)</code> - Add LIMIT</li>
+            <li><code>offset(count)</code> - Add OFFSET</li>
+            <li><code>get()</code> - Execute SELECT and return results</li>
+            <li><code>first()</code> - Execute SELECT and return first result</li>
+            <li><code>addValue(column, value)</code> - Add value for INSERT</li>
+            <li><code>set(column, value)</code> - Set column for UPDATE</li>
+            <li><code>delete()</code> - Start DELETE query</li>
+            <li><code>execute()</code> - Execute INSERT/UPDATE/DELETE</li>
+          </ul>
+          <p><strong>Traditional Query Builders</strong>:</p>
           <ul>
             <li><strong>Select</strong>: <code>init</code>, <code>select</code>, <code>where</code>, <code>orderBy</code>, <code>limit</code>, <code>offset</code>, <code>toSql</code></li>
             <li><strong>Insert</strong>: <code>init</code>, <code>addValue</code>, <code>setValues</code>, <code>toSql</code></li>
@@ -487,7 +522,8 @@ try db.commit();</code></pre>
 │   └── dig/                       # Module files directory
 │       ├── connection.zig         # Connection abstraction
 │       ├── db.zig                 # Database interface
-│       ├── query.zig              # Query builders
+│       ├── query.zig              # Query builders (Select, Insert, Update, Delete)
+│       ├── queryBuilder.zig      # Chainable query builder
 │       ├── schema.zig             # Schema definitions
 │       ├── migration.zig          # Migration system
 │       ├── types.zig              # Type definitions
